@@ -24,6 +24,6 @@ if (Test-CommandExists "livekit-server") {
 }
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\backend'; uv run python src/agent.py dev"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; pnpm dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; `$env:PATH = '$repoRoot\frontend\node_modules\.bin;' + `$env:PATH; pnpm run dev"
 
 Write-Host "Started backend and frontend in separate PowerShell windows."
