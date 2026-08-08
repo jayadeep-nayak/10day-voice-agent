@@ -1,65 +1,98 @@
 import { Button } from '@/components/ui/button';
 
-function WelcomeImage() {
-  return (
-    <svg
-      width="64"
-      height="64"
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="text-fg0 mb-4 size-16"
-    >
-      <path
-        d="M15 24V40C15 40.7957 14.6839 41.5587 14.1213 42.1213C13.5587 42.6839 12.7956 43 12 43C11.2044 43 10.4413 42.6839 9.87868 42.1213C9.31607 41.5587 9 40.7957 9 40V24C9 23.2044 9.31607 22.4413 9.87868 21.8787C10.4413 21.3161 11.2044 21 12 21C12.7956 21 13.5587 21.3161 14.1213 21.8787C14.6839 22.4413 15 23.2044 15 24ZM22 5C21.2044 5 20.4413 5.31607 19.8787 5.87868C19.3161 6.44129 19 7.20435 19 8V56C19 56.7957 19.3161 57.5587 19.8787 58.1213C20.4413 58.6839 21.2044 59 22 59C22.7956 59 23.5587 58.6839 24.1213 58.1213C24.6839 57.5587 25 56.7957 25 56V8C25 7.20435 24.6839 6.44129 24.1213 5.87868C23.5587 5.31607 22.7956 5 22 5ZM32 13C31.2044 13 30.4413 13.3161 29.8787 13.8787C29.3161 14.4413 29 15.2044 29 16V48C29 48.7957 29.3161 49.5587 29.8787 50.1213C30.4413 50.6839 31.2044 51 32 51C32.7956 51 33.5587 50.6839 34.1213 50.1213C34.6839 49.5587 35 48.7957 35 48V16C35 15.2044 34.6839 14.4413 34.1213 13.8787C33.5587 13.3161 32.7956 13 32 13ZM42 21C41.2043 21 40.4413 21.3161 39.8787 21.8787C39.3161 22.4413 39 23.2044 39 24V40C39 40.7957 39.3161 41.5587 39.8787 42.1213C40.4413 42.6839 41.2043 43 42 43C42.7957 43 43.5587 42.6839 44.1213 42.1213C44.6839 41.5587 45 40.7957 45 40V24C45 23.2044 44.6839 22.4413 44.1213 21.8787C43.5587 21.3161 42.7957 21 42 21ZM52 17C51.2043 17 50.4413 17.3161 49.8787 17.8787C49.3161 18.4413 49 19.2044 49 20V44C49 44.7957 49.3161 45.5587 49.8787 46.1213C50.4413 46.6839 51.2043 47 52 47C52.7957 47 53.5587 46.6839 54.1213 46.1213C54.6839 45.5587 55 44.7957 55 44V20C55 19.2044 54.6839 18.4413 54.1213 17.8787C53.5587 17.3161 52.7957 17 52 17Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 interface WelcomeViewProps {
   startButtonText: string;
   onStartCall: () => void;
+  isStarting?: boolean;
 }
 
 export const WelcomeView = ({
-  startButtonText,
+  startButtonText = 'Start Session',
   onStartCall,
+  isStarting = false,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
   return (
-    <div ref={ref}>
-      <section className="bg-background flex flex-col items-center justify-center text-center">
-        <WelcomeImage />
+    <div ref={ref} className="relative min-h-svh bg-transparent">
+      {/* Background ambient glow */}
+      <div className="hero-glow pointer-events-none absolute inset-0" />
 
-        <p className="text-foreground max-w-prose pt-1 leading-6 font-medium">
-          Chat live with your voice AI agent
+      <section className="relative flex min-h-svh flex-col items-center justify-center px-6 pt-20 pb-24 text-center">
+        {/* ── Central AI Voice Sound Reactor Core (Preserved Electric Cyan-Blue Orb Animation) ── */}
+        <div className="relative my-8 flex items-center justify-center">
+          {/* Ambient Background Aura Glow */}
+          <div className="animate-orb-glow absolute h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl md:h-80 md:w-80" />
+
+          {/* Outer Orbit Ring 1 (Clockwise Rotation with Glowing Node) */}
+          <div className="animate-spin-slow absolute h-52 w-52 rounded-full border border-cyan-400/35 md:h-64 md:w-64">
+            <span className="absolute -top-1.5 left-1/2 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/80" />
+            <span className="absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-blue-400 shadow-md shadow-blue-400/80" />
+          </div>
+
+          {/* Inner Orbit Ring 2 (Counter-clockwise Dashed Ring) */}
+          <div className="animate-spin-reverse-slow absolute h-44 w-44 rounded-full border border-dashed border-cyan-300/30 md:h-52 md:w-52" />
+
+          {/* Expanding Pulsing Ring 3 */}
+          <div className="animate-ring-pulse absolute h-40 w-40 rounded-full border-2 border-cyan-400/30 md:h-48 md:w-48" />
+
+          {/* Floating Energy Particles */}
+          <div className="animate-subtle-float absolute -top-4 left-4 h-2 w-2 rounded-full bg-cyan-300 shadow-sm shadow-cyan-300" />
+          <div className="animate-subtle-float absolute -bottom-2 right-6 h-2.5 w-2.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400" />
+          <div className="animate-subtle-float absolute top-12 -right-4 h-2 w-2 rounded-full bg-cyan-200 shadow-sm shadow-cyan-200" />
+
+          {/* ── Main AI Voice Reactor Sphere Core (Electric Cyan-Blue) ── */}
+          <div className="animate-ai-core-pulse relative flex h-36 w-36 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-cyan-600 shadow-2xl shadow-cyan-500/40 md:h-44 md:w-44 border-2 border-white/40 backdrop-blur-xl">
+            {/* Inner Glass Sphere Glow */}
+            <div className="absolute inset-2 rounded-full bg-gradient-to-br from-white/30 via-transparent to-black/30 backdrop-blur-md" />
+
+            {/* Inner AI Reactor Live Soundwave Equalizer */}
+            <div className="relative z-10 flex items-center justify-center gap-1.5">
+              <span className="w-1.5 rounded-full bg-white animate-core-eq-1 shadow-sm" />
+              <span className="w-1.5 rounded-full bg-cyan-100 animate-core-eq-2 shadow-sm" />
+              <span className="w-2 rounded-full bg-white animate-core-eq-3 shadow-sm" />
+              <span className="w-1.5 rounded-full bg-cyan-100 animate-core-eq-4 shadow-sm" />
+              <span className="w-1.5 rounded-full bg-white animate-core-eq-5 shadow-sm" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Hero Title ("Meet Nova") Matching User Image ── */}
+        <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl drop-shadow-sm">
+          <span className="text-[#FAF8F5]">Meet </span>
+          <span className="text-[#38BDF8] drop-shadow">Nova</span>
+        </h1>
+
+        {/* Subtitle Matching User Image */}
+        <p className="text-[#8E9BAE] mt-4 max-w-md text-base leading-7 md:text-lg font-normal">
+          Your AI voice companion is ready to converse, practice, and learn with you.
         </p>
 
+        {/* READY Status Indicator Badge (Dark Emerald Green Pill matching User Image) */}
+        <div className="mt-6 mb-8 flex items-center gap-2 rounded-full border border-emerald-800/60 bg-[#072418] px-4 py-1.5 text-xs font-bold text-[#34D399] shadow-md shadow-emerald-950/40 backdrop-blur-md">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#34D399] animate-pulse shadow-sm shadow-[#34D399]" />
+          <span className="tracking-widest uppercase">Ready</span>
+        </div>
+
+        {/* Start Session CTA Button (Dark Emerald Green Pill matching User Image) */}
         <Button
           size="lg"
           onClick={onStartCall}
-          className="mt-6 w-64 rounded-full font-mono text-xs font-bold tracking-wider uppercase"
+          disabled={isStarting}
+          id="nova-start-button"
+          className="w-72 rounded-full bg-gradient-to-r from-[#0B3B2B] via-[#0D4B36] to-[#083827] hover:from-[#0E543D] hover:to-[#0B4431] px-8 py-6 text-base font-bold text-[#FAF8F5] border border-emerald-700/50 shadow-xl shadow-emerald-950/60 transition-all duration-300 hover:shadow-emerald-900/40 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {startButtonText}
+          {isStarting ? (
+            <span className="flex items-center gap-2 text-[#FAF8F5]">
+              <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-ln-spin" />
+              Connecting...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 text-[#FAF8F5]">
+              🎙 {startButtonText}
+            </span>
+          )}
         </Button>
       </section>
-
-      <div className="fixed bottom-5 left-0 flex w-full items-center justify-center">
-        <p className="text-muted-foreground max-w-prose pt-1 text-xs leading-5 font-normal text-pretty md:text-sm">
-          Need help getting set up? Check out the{' '}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://docs.livekit.io/agents/start/voice-ai/"
-            className="underline"
-          >
-            Voice AI quickstart
-          </a>
-          .
-        </p>
-      </div>
     </div>
   );
 };

@@ -54,7 +54,10 @@ export function AudioVisualizer({
           audioTrack={audioTrack}
           color={audioVisualizerColor}
           colorShift={audioVisualizerColorShift}
-          className={cn('size-[300px] md:size-[450px]', className)}
+          className={cn(
+            isChatOpen ? 'size-[56px]' : 'size-[220px] md:size-[300px]',
+            className
+          )}
           {...props}
         />
       );
@@ -67,8 +70,8 @@ export function AudioVisualizer({
             audioTrack={audioTrack}
             color={audioVisualizerColor}
             colorShift={audioVisualizerColorShift}
-            lineWidth={isChatOpen ? audioVisualizerWaveLineWidth * 2 : audioVisualizerWaveLineWidth}
-            className="size-[300px] md:size-[450px]"
+            lineWidth={isChatOpen ? audioVisualizerWaveLineWidth * 1.2 : audioVisualizerWaveLineWidth}
+            className={isChatOpen ? 'size-[56px]' : 'size-[240px] md:size-[320px]'}
           />
         </motion.div>
       );
@@ -96,7 +99,10 @@ export function AudioVisualizer({
           radius={Math.round(
             Math.min(audioVisualizerGridRowCount, audioVisualizerGridColumnCount) / 4
           )}
-          className={cn('size-[350px] gap-0 p-8 *:place-self-center md:size-[450px]', className)}
+          className={cn(
+            isChatOpen ? 'size-[56px]' : 'size-[280px] gap-0 p-8 *:place-self-center md:size-[360px]',
+            className
+          )}
           {...props}
         />
       );
@@ -109,29 +115,29 @@ export function AudioVisualizer({
             state={state}
             color={audioVisualizerColor}
             audioTrack={audioTrack}
-            radius={audioVisualizerRadialRadius}
+            radius={isChatOpen ? 24 : audioVisualizerRadialRadius}
             barCount={audioVisualizerRadialBarCount}
-            className="size-[450px]"
+            className={isChatOpen ? 'size-[56px]' : 'size-[350px]'}
           />
         </motion.div>
       );
     }
     default: {
       let size: 'icon' | 'sm' | 'md' | 'lg' | 'xl' = 'icon';
-      let sizedClassName = cn('size-[300px] md:size-[450px]', className);
+      let sizedClassName = cn(
+        isChatOpen ? 'size-[56px]' : 'size-[260px] md:size-[360px]',
+        className
+      );
 
       if (audioVisualizerBarCount <= 5) {
-        size = 'xl';
-        sizedClassName = cn('size-[450px] *:min-h-[64px] *:w-[64px] gap-4', className);
+        size = isChatOpen ? 'icon' : 'xl';
+        sizedClassName = cn(
+          isChatOpen ? 'size-[56px]' : 'size-[360px] *:min-h-[56px] *:w-[56px] gap-3',
+          className
+        );
       } else if (audioVisualizerBarCount <= 10) {
-        size = 'lg';
-        sizedClassName = cn('size-[450px]', className);
-      } else if (audioVisualizerBarCount <= 15) {
-        size = 'md';
-        sizedClassName = cn('size-[350px] md:size-[450px]', className);
-      } else if (audioVisualizerBarCount <= 30) {
-        size = 'sm';
-        sizedClassName = cn('size-[300px] md:size-[450px]', className);
+        size = isChatOpen ? 'sm' : 'lg';
+        sizedClassName = cn(isChatOpen ? 'size-[56px]' : 'size-[360px]', className);
       }
 
       return (
