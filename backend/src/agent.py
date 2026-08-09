@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from typing import Optional
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -8,8 +10,10 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     JobProcess,
+    RunContext,
     UserInputTranscribedEvent,
     cli,
+    function_tool,
     room_io,
     tokenize,
 )
@@ -18,31 +22,124 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 load_dotenv(".env.local")
 
+import database  # noqa: E402
 from prompt import SYSTEM_PROMPT  # noqa: E402
 
 logger = logging.getLogger("agent")
+
+# Initialize SQLite database
+database.initialize_db()
 
 
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
+        self.current_caller_id = None
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def lookup_caller(
+        self,
+        context: RunContext,
+        user_id: Optional[str] = None,
+        name: Optional[str] = None,
+    ) -> str:
+        """Use this tool to look up a caller's details from the database.
+        You can look them up by their unique user ID or their name.
+
+        Args:
+            user_id: The unique ID of the caller (e.g. 'usr_1234abcd')
+            name: The name of the caller (e.g. 'Ramesh')
+        """
+        logger.info(f"Tool lookup_caller called with user_id={user_id}, name={name}")
+
+        uid = user_id or self.current_caller_id
+        logger.info(
+            f"Tool lookup_caller called with user_id={user_id}, name={name}, using uid={uid}"
+        )
+
+        caller = None
+        if uid:
+            caller = database.lookup_caller(uid)
+        if not caller and name:
+            caller = database.lookup_caller_by_name(name)
+
+        if not caller:
+            return f"No record found for caller with user_id='{user_id}' and name='{name}'."
+
+        return (
+            f"Found caller record: "
+            f"user_id: {caller['user_id']}, "
+            f"name: {caller['name']}, "
+            f"language_preference: {caller['language_preference']}, "
+            f"facts: {caller['facts']}, "
+            f"last_interaction: {caller['last_interaction']}"
+        )
+
+    @function_tool
+    async def save_caller_facts(
+        self,
+        context: RunContext,
+        name: str,
+        language_preference: Optional[str] = "English",
+        user_id: Optional[str] = None,
+        current_level: Optional[str] = None,
+        topics_covered: Optional[str] = None,
+        mistakes_made: Optional[str] = None,
+        action_taken: Optional[str] = None,
+    ) -> str:
+        """Save the caller's name and what was discussed. Only call AFTER the caller verbally agrees.
+
+        Args:
+            name: The caller's name exactly as they said it (e.g. 'Ramesh', 'Jay')
+            language_preference: Language they prefer (e.g. 'English', 'Hindi')
+            user_id: Leave empty — filled automatically
+            current_level: Their learning level (e.g. 'Grade 2', 'Beginner')
+            topics_covered: The EXACT topic discussed (e.g. 'cotton farming', 'addition'). Use their exact words.
+            mistakes_made: Mistakes they keep making
+            action_taken: Action or solution discussed (e.g. 'spraying pesticide', 'daily reading')
+        """
+        uid = user_id or self.current_caller_id
+        if not uid and context and hasattr(context, "session") and context.session.room_io:
+            try:
+                room = context.session.room_io.room
+                if room and room.remote_participants:
+                    p = next(iter(room.remote_participants.values()))
+                    uid = p.identity
+                    self.current_caller_id = uid
+            except Exception as ex:
+                logger.warning(f"Could not retrieve participant from room: {ex}")
+
+        save_name = name or "User"
+        save_lang = language_preference or "English"
+
+        if not uid:
+            logger.error("save_caller_facts: uid is still None — cannot save")
+            return "Error: could not identify caller. Please try again."
+
+        # Build facts dict — only save values actually provided by the caller
+        facts: dict = {}
+        if current_level:
+            facts["current_level"] = current_level
+        if topics_covered:
+            facts["topics_covered"] = topics_covered
+        if mistakes_made:
+            facts["mistakes_made"] = mistakes_made
+        if action_taken:
+            facts["action_taken"] = action_taken
+
+        logger.info(f"Saving caller: name={save_name}, uid={uid}, facts={facts}")
+
+        try:
+            database.save_caller(
+                user_id=uid,
+                name=save_name,
+                language_preference=save_lang,
+                facts=facts,
+            )
+            return f"Successfully saved profile for {save_name} (ID: {uid}). Facts: {facts}"
+        except Exception as e:
+            logger.error(f"Error saving caller facts: {e}")
+            return f"Error saving caller facts: {e!s}"
 
 
 server = AgentServer()
@@ -178,8 +275,9 @@ async def my_agent(ctx: JobContext):
     # await avatar.start(session, room=ctx.room)
 
     # Start the session, which initializes the voice pipeline and warms up the models
+    assistant = Assistant()
     await session.start(
-        agent=Assistant(),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -195,6 +293,103 @@ async def my_agent(ctx: JobContext):
 
     # Join the room and connect to the user
     await ctx.connect()
+
+    # Look up caller information and greet them by name
+    logger.info("Looking up caller details to prepare welcoming greeting...")
+    participant = None
+    for _ in range(300):
+        if ctx.room.remote_participants:
+            participant = next(iter(ctx.room.remote_participants.values()))
+            break
+        await asyncio.sleep(0.1)
+
+    caller_name = "user"
+    caller_id = None
+    caller_record = None
+
+    if participant:
+        caller_id = participant.identity
+        caller_name = participant.name or "user"
+        logger.info(f"Caller identified - user_id: {caller_id}, name: {caller_name}")
+        assistant.current_caller_id = caller_id
+
+        # Search the database by participant identity (persistent userId from browser)
+        caller_record = database.lookup_caller(caller_id)
+        if not caller_record and caller_name and caller_name != "user":
+            caller_record = database.lookup_caller_by_name(caller_name)
+    else:
+        logger.warning("No remote participant detected in the room.")
+
+    greeting_message = ""
+    custom_instructions = SYSTEM_PROMPT
+
+    if caller_record:
+        # Returning caller
+        db_name = caller_record["name"]
+        facts = caller_record["facts"]
+        topics = facts.get("topics_covered") or facts.get("topic") or facts.get("topics") or "your topic"
+        raw_action = facts.get("action_taken") or facts.get("action") or facts.get("mistakes_made") or "spraying"
+        level = facts.get("current_level", "Unknown")
+        pref_lang = caller_record.get("language_preference", "English")
+        mistakes = facts.get("mistakes_made", "None")
+
+        logger.info(f"Loaded returning caller facts for {db_name}: {facts}")
+
+        # Formulate exact returning greeting requested: "Namaste Ramesh, last time we spoke about your cotton. Did the spraying help?"
+        if raw_action and raw_action != "None" and raw_action != "spraying":
+            action_phrase = (
+                raw_action
+                if raw_action.lower().startswith(("the ", "your ", "that ", "a ", "an "))
+                else f"the {raw_action}"
+            )
+        else:
+            action_phrase = "the spraying"
+
+        greeting_message = f"Namaste {db_name}, last time we spoke about {topics}. Did {action_phrase} help?"
+
+        custom_instructions += f"""
+
+CURRENT CALLER CONTEXT (RETURNING):
+- User ID: {caller_id}
+- Name: {db_name}
+- Preferred Language: {pref_lang}
+- Current Level: {level}
+- Topics Covered: {topics}
+- Mistakes they keep making: {mistakes}
+
+GREETING: You have already greeted the caller with: "{greeting_message}"
+Welcome them back and resume the lesson.
+"""
+    else:
+        # New caller
+        if caller_name and caller_name != "user":
+            greeting_message = f"Hi {caller_name}! Welcome! How can I help you learn today? Feel free to speak in English or Hindi."
+            custom_instructions += f"""
+
+CURRENT CALLER CONTEXT (NEW WITH NAME):
+- User ID: {caller_id or "Unknown"}
+- Name: {caller_name}
+- Current Level: New Learner
+- Goal: Assess their level and start their first lesson.
+GREETING: You have already greeted the caller with: "{greeting_message}"
+"""
+        else:
+            greeting_message = "Hi! How can I help you today? Feel free to speak with me in English or Hindi! May I know your name?"
+            custom_instructions += f"""
+
+CURRENT CALLER CONTEXT (NEW UNKNOWN):
+- User ID: {caller_id or "Unknown"}
+- Name: Unknown
+- Current Level: New Learner
+- Goal: Ask for their name first and start their first lesson.
+GREETING: You have already greeted the caller with: "{greeting_message}"
+"""
+
+    # Set caller context instructions
+    assistant.update_instructions(custom_instructions)
+
+    # Deliver greeting speech
+    session.say(greeting_message, allow_interruptions=True)
 
 
 if __name__ == "__main__":

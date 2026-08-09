@@ -18,7 +18,7 @@ const AGENT_NAME = process.env.AGENT_NAME;
 // don't cache the results
 export const revalidate = 0;
 
-export async function POST(req: Request) {
+async function handleTokenRequest(req: Request) {
   try {
     if (LIVEKIT_URL === undefined) {
       throw new Error('LIVEKIT_URL is not defined');
@@ -29,6 +29,10 @@ export async function POST(req: Request) {
     if (API_SECRET === undefined) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
+
+    const url = new URL(req.url);
+    const queryUserId = url.searchParams.get('userId');
+    const queryName = url.searchParams.get('name');
 
     // Parse room config from request body (if provided).
     const body = await req.json().catch(() => ({}));
@@ -45,8 +49,8 @@ export async function POST(req: Request) {
     }
       
     // Generate participant token
-    const participantName = 'user';
-    const participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
+    const participantName = queryName || body?.name || 'user';
+    const participantIdentity = queryUserId || body?.userId || `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
     const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
 
     const participantToken = await createParticipantToken(
@@ -72,6 +76,14 @@ export async function POST(req: Request) {
       return new NextResponse(error.message, { status: 500 });
     }
   }
+}
+
+export async function GET(req: Request) {
+  return handleTokenRequest(req);
+}
+
+export async function POST(req: Request) {
+  return handleTokenRequest(req);
 }
 
 function createParticipantToken(

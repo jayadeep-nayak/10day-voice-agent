@@ -28,9 +28,35 @@ interface AppProps {
 
 export function App({ appConfig }: AppProps) {
   const tokenSource = useMemo(() => {
-    return typeof process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT === 'string'
-      ? getSandboxTokenSource(appConfig)
-      : TokenSource.endpoint('/api/token');
+    if (typeof process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT === 'string') {
+      return getSandboxTokenSource(appConfig);
+    }
+    return TokenSource.custom(async () => {
+      let userId = localStorage.getItem('voice_agent_user_id');
+      if (!userId) {
+        userId = 'usr_' + Math.random().toString(36).substring(2, 11);
+        localStorage.setItem('voice_agent_user_id', userId);
+      }
+      localStorage.removeItem('voice_agent_user_name');
+      const name = 'user';
+
+      const res = await fetch(`/api/token?userId=${encodeURIComponent(userId)}&name=${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          name,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch connection details');
+      }
+
+      return await res.json();
+    });
   }, [appConfig]);
 
   const session = useSession(
