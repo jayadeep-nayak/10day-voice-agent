@@ -1,4 +1,22 @@
+# Environment secrets — NEVER push real keys
 .env
 .env.*
 !.env.example
+
+# Large binary — download separately from LiveKit releases
+livekit-server.exe
+livekit-server
+
+# OS junk
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# SQLite database — auto-created on first run by initialize_db()
+# Do NOT push this to avoid leaking real user data
+*.db
+*.sqlite
+*.sqlite3

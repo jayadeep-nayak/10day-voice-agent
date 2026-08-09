@@ -1,15 +1,23 @@
+# Environment secrets — NEVER push real keys
 .env
 .env.*
 !.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# IDE / OS
+.idea/
 .DS_Store
-__pycache__
-.idea
-KMS
-.venv
-.vscode
-*.egg-info
-.pytest_cache
-.ruff_cache
+Thumbs.db
+
+# Sensitive local files
+KMS/
 
 # Claude Code
 .claude/settings.local.json
@@ -31,3 +39,10 @@ KMS
 
 # GitHub CLI
 .github/personal-instructions.md
+
+# SQLite database — auto-created on first run by initialize_db()
+# Excluded to avoid pushing real user data to GitHub.
+# The database is created automatically when the app starts.
+*.db
+*.sqlite
+*.sqlite3
