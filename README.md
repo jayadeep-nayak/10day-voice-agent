@@ -273,6 +273,48 @@ For deeper documentation on each part, see:
 
 ---
 
+## Learning & Literacy Track: Domain Data & Tools
+
+### Theme & Objective
+- **Track**: Learning & Literacy
+- **Objective**: Fetch next level-graded exercise dynamically and score a spoken answer using real domain data.
+
+### Domain Data Sources
+1. **Live External API**: [Datamuse Public Educational API](https://api.datamuse.com/words) — Fetches dynamic vocabulary, phonics, and reading definitions with a 3.5s timeout.
+2. **Local Graded Dataset**: Curated Literacy & Numeracy exercise repository indexed by grade levels (`beginner`, `grade_1`, `grade_2`, `grade_3`, `intermediate`, `advanced`) and topics (`reading`, `phonics`, `vocabulary`, `math_literacy`).
+
+### Function Calls Implemented
+1. `fetch_next_exercise(level, topic)`
+   - **Description**: Fetches the next exercise for the specified level and topic from the live educational API or local dataset.
+   - **Data Timestamp**: Embeds ISO UTC timestamp (e.g. `2026-08-10 18:52 UTC`) stored in database records and tool payload for auditing, kept silent during voice output.
+   - **Out-Loud Failure Handling**: If the API times out or network connection fails, catches the error and returns an explicit instruction so the agent announces out loud: *"I couldn't reach the online exercise server right now due to a network connection delay, so I have loaded a backup practice question from our offline curriculum."*
+
+2. `score_spoken_answer(spoken_answer, exercise_id, expected_answer)`
+   - **Description**: Evaluates character distance (Levenshtein), word overlap ratio, and phonetic similarity between the user's spoken answer and expected text.
+   - **Data Timestamp**: Includes evaluation timestamp (`scored_at_timestamp`) stored in database records.
+
+### Recommended Questions to Ask the Voice Agent
+
+To test these function calls in action, ask the voice agent:
+
+1. **To fetch an exercise:**
+   - *"Can you give me a Grade 1 math exercise?"*
+   - *"Fetch a beginner reading practice question for me."*
+   - *"Give me a Grade 2 vocabulary question."*
+
+2. **To submit & score a spoken answer:**
+   - *"My answer is 'hat'. How did I do?"*
+   - *"I read it as: 'The sun shines bright in the sky'. Score my reading."*
+   - *"My answer for the math question is 5."*
+
+3. **To test caller context & end-of-chat data consent:**
+   - *"My name is Ramesh and we practiced beginner phonics."*
+   - Agent asks at chat ending: *"I'd like to remember your name Ramesh and that we spoke about beginner phonics. Is it okay if I save this?"*
+   - User responds: *"Yes, please save it."* (Triggers `save_caller_facts`)
+
+---
+
 ## License
 
 MIT
+

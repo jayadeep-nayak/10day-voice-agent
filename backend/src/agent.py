@@ -23,6 +23,7 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 load_dotenv(".env.local")
 
 import database  # noqa: E402
+import exercises  # noqa: E402
 from prompt import SYSTEM_PROMPT  # noqa: E402
 
 logger = logging.getLogger("agent")
@@ -35,6 +36,95 @@ class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
         self.current_caller_id = None
+
+    @function_tool
+    async def fetch_next_exercise(
+        self,
+        context: RunContext,
+        level: Optional[str] = "beginner",
+        topic: Optional[str] = None,
+    ) -> str:
+        """Fetch the next learning or literacy exercise based on the user's requested level.
+        Use this tool whenever the user asks for a practice question, exercise, reading test, math exercise, or word practice.
+        Do NOT guess or invent exercises yourself; always call this tool to fetch real exercise data.
+
+        Args:
+            level: The learner's level. Options: 'beginner', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'intermediate'. Defaults to 'beginner'.
+            topic: Optional subject filter. Options: 'english', 'math', 'vocabulary', 'reading'. Defaults to None (any topic).
+        """
+        logger.info(f"Tool fetch_next_exercise called with level={level}, topic={topic}")
+        try:
+            res = await exercises.fetch_next_exercise_data(
+                level=level or "beginner", topic=topic
+            )
+            logger.info(f"fetch_next_exercise_data result: {res}")
+
+            if res.get("status") == "error_no_exercises":
+                return f"System Notice: {res.get('notice', 'No exercises found.')}\n"
+
+            output = (
+                f"Exercise ID: {res['exercise_id']}\n"
+                f"Level: {res['level']}\n"
+                f"Type: {res['type']}\n"
+                f"Question: {res['question']}\n"
+                f"Answer: {res['answer']}\n"
+                f"Data Source: {res['data_source']}\n"
+                f"Data Timestamp: {res['data_timestamp']}\n"
+            )
+            if "notice" in res:
+                output += f"System Notice: {res['notice']}\n"
+            return output
+        except Exception as e:
+            logger.error(f"Error fetching next exercise: {e}")
+            return (
+                "FAILURE_NOTICE: Connection to exercise repository failed. "
+                "You MUST announce out loud: 'I could not fetch an exercise right now due to a connection error. "
+                "Let's try a quick one from memory: What is the opposite of hot?'"
+            )
+
+    @function_tool
+    async def score_spoken_answer(
+        self,
+        context: RunContext,
+        spoken_answer: str,
+        exercise_id: Optional[str] = None,
+        expected_answer: Optional[str] = None,
+    ) -> str:
+        """Evaluate and score a spoken answer provided by the user for a literacy exercise.
+        Use this tool whenever the user attempts an exercise answer, reads a sentence aloud, or asks how well they did on an exercise.
+
+        Args:
+            spoken_answer: The user's exact spoken words or transcribed answer.
+            exercise_id: The unique ID of the exercise being attempted (e.g., 'EX_BEG_101', 'EX_G1_201').
+            expected_answer: The expected or correct phrase/answer, if available.
+        """
+        logger.info(
+            f"Tool score_spoken_answer called with exercise_id={exercise_id}, "
+            f"spoken_answer='{spoken_answer}', expected_answer='{expected_answer}'"
+        )
+        try:
+            res = exercises.score_spoken_answer_data(
+                exercise_id=exercise_id or "",
+                spoken_answer=spoken_answer,
+                expected_answer=expected_answer,
+            )
+            logger.info(f"score_spoken_answer_data result: {res}")
+            return (
+                f"Evaluation Result for Exercise {res['exercise_id']}:\n"
+                f"Spoken Answer: '{res['spoken_answer']}'\n"
+                f"Expected Answer: '{res['expected_answer']}'\n"
+                f"Score: {res['score_percentage']}%\n"
+                f"Passed: {res['passed']}\n"
+                f"Feedback: {res['feedback']}\n"
+                f"Evaluation Timestamp: {res['scored_at_timestamp']}\n"
+            )
+        except Exception as e:
+            logger.error(f"Error scoring spoken answer: {e}")
+            return (
+                "FAILURE_NOTICE: Could not access scoring service. "
+                "You MUST announce out loud: 'I had trouble evaluating your answer automatically due to a temporary error. "
+                "However, you pronounced your answer very clearly! Great job practice speaking.'"
+            )
 
     @function_tool
     async def lookup_caller(
