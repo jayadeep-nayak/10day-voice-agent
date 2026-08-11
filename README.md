@@ -314,7 +314,67 @@ To test these function calls in action, ask the voice agent:
 
 ---
 
+## Daily Literacy Practice — Outbound Call Feature (Linphone)
+
+This starter project includes an outbound SIP-telephony dialing feature to call users for their scheduled daily literacy practice using **Linphone** (a free, open-source SIP client).
+
+### Outbound Call Setup & Run
+
+#### 1. Create a Free Linphone Account
+- Sign up for a free SIP account at [subscribe.linphone.org](https://subscribe.linphone.org/).
+- Install the Linphone app (desktop or mobile) and sign in. Your SIP address will be: `sip:<username>@sip.linphone.org`.
+- Keep the app running and online.
+
+#### 2. Configure LiveKit Outbound Trunk
+- In the [LiveKit Cloud Dashboard](https://cloud.livekit.io) -> select your project -> **SIP** tab.
+- Click **Create Outbound Trunk**:
+  - **Name**: `linphone-outbound`
+  - **Address/Hostname**: `sip.linphone.org`
+  - **Numbers**: `+0000000000` (placeholder caller ID)
+- Save the trunk and copy the generated **Trunk ID** (e.g. `ST_xxxxxxxxxxxx`).
+
+#### 3. Update Environment variables
+Open `backend/.env.local` and add:
+```env
+SIP_OUTBOUND_TRUNK_ID=ST_xxxxxxxxxxxx             # Your LiveKit Outbound Trunk ID
+LINPHONE_SIP_URI=sip:<username>@sip.linphone.org  # Your Linphone destination URI
+```
+
+#### 4. Run the Agent and Trigger the Call
+- **Start the Agent (Terminal 1)**:
+  ```bash
+  cd backend
+  uv run python src/agent.py dev
+  ```
+- **Trigger the Outbound Call (Terminal 2)**:
+  ```bash
+  cd backend
+  uv run python src/make_outbound_call.py
+  ```
+
+Your Linphone client will ring. Accept the call to begin your practice!
+
+### Supported Call Flows & Prompts
+
+1. **Required Outbound Greeting**:
+   Immediately upon pickup, the agent speaks:
+   > *"Hi, this is your Daily Literacy Coach calling for your scheduled reading practice. If you want to stop these calls at any time, just say 'cancel my calls'."*
+   
+   If you have a returning profile in the database, the agent dynamically appends personalization based on your last lesson (e.g. *"Namaste Jay, last time we spoke about beginner English. Did the practice help?"*).
+
+2. **Cancel Calls / Opt-Out**:
+   If you say *"cancel my calls"*, *"unsubscribe"*, or *"stop calling me"*, the agent calls the `cancel_daily_calls` tool to record your opt-out, states an confirmation message, and gracefully disconnects the call.
+
+3. **Wrap-up Consent**:
+   Immediately after the first exercise is completed and scored, the agent wraps up the call and asks:
+   > *"I'd like to remember your name {Name} and that we spoke about {Topic}. Is it okay if I save this?"*
+   
+   Responding *"Yes"* saves your details to `voice_agent.db` for the next call's personalization.
+
+---
+
 ## License
 
 MIT
+
 
