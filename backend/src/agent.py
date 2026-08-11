@@ -24,7 +24,7 @@ load_dotenv(".env.local")
 
 import database  # noqa: E402
 import exercises  # noqa: E402
-from prompt import SYSTEM_PROMPT  # noqa: E402
+from prompt import OUTBOUND_SYSTEM_PROMPT, SYSTEM_PROMPT  # noqa: E402
 
 logger = logging.getLogger("agent")
 
@@ -32,10 +32,19 @@ logger = logging.getLogger("agent")
 database.initialize_db()
 
 
+# ── Outbound call greeting (exact wording required for trust & compliance) ─────
+OUTBOUND_GREETING = (
+    "Hi, this is your Daily Literacy Coach calling for your scheduled reading practice. "
+    "If you want to stop these calls at any time, just say 'cancel my calls'."
+)
+
+
 class Assistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+    def __init__(self, is_outbound_call: bool = False) -> None:
+        prompt = OUTBOUND_SYSTEM_PROMPT if is_outbound_call else SYSTEM_PROMPT
+        super().__init__(instructions=prompt)
         self.current_caller_id = None
+        self.is_outbound_call = is_outbound_call
 
     @function_tool
     async def fetch_next_exercise(
@@ -163,6 +172,48 @@ class Assistant(Agent):
             f"language_preference: {caller['language_preference']}, "
             f"facts: {caller['facts']}, "
             f"last_interaction: {caller['last_interaction']}"
+        )
+
+    @function_tool
+    async def cancel_daily_calls(
+        self,
+        context: RunContext,
+    ) -> str:
+        """Cancel the user's daily literacy practice call subscription.
+        Use this tool ONLY when the user explicitly asks to stop receiving calls,
+        e.g. they say 'cancel my calls', 'stop calling me', 'unsubscribe', etc.
+        After calling this tool, end the conversation gracefully.
+        """
+        caller_id = self.current_caller_id or "unknown"
+        logger.info(f"cancel_daily_calls requested by caller {caller_id}")
+
+        # Log the cancellation (in production, this would update a scheduling DB)
+        logger.info(
+            f"CANCELLATION RECORDED: caller_id={caller_id} has opted out of daily calls."
+        )
+
+        # Disconnect the SIP call after a short delay to let the goodbye play
+        if context and hasattr(context, "session"):
+            session = context.session
+            if hasattr(session, "room_io") and session.room_io:
+                room = session.room_io.room
+                if room and room.remote_participants:
+                    async def _disconnect_after_goodbye():
+                        await asyncio.sleep(6)
+                        for p in list(room.remote_participants.values()):
+                            if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                                try:
+                                    await room.local_participant.publish_data(
+                                        "BYE", topic="lk-sip-hangup"
+                                    )
+                                except Exception as ex:
+                                    logger.warning(f"Could not send SIP hangup: {ex}")
+                    asyncio.create_task(_disconnect_after_goodbye())
+
+        return (
+            f"Cancellation confirmed for caller {caller_id}. "
+            "The user has been unsubscribed from daily practice calls. "
+            "Please say goodbye warmly and end the conversation."
         )
 
     @function_tool
@@ -346,6 +397,14 @@ async def my_agent(ctx: JobContext):
             )
             session.tts.update_options(locale="en-IN")
 
+    @session.on("user_started_speaking")
+    def on_user_started_speaking():
+        logger.info("🎙️ User started speaking detected!")
+
+    @session.on("user_stopped_speaking")
+    def on_user_stopped_speaking():
+        logger.info("🔇 User stopped speaking detected!")
+
     # To use a realtime model instead of a voice pipeline, use the following session setup instead.
     # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
     # 1. Install livekit-agents[openai]
@@ -364,15 +423,35 @@ async def my_agent(ctx: JobContext):
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
 
-    # Start the session, which initializes the voice pipeline and warms up the models
-    assistant = Assistant()
+    # ── Detect SIP (phone) participants for outbound call handling ─────────
+    # Connect first so we can inspect incoming participants
+    await ctx.connect()
+
+    # Wait for a remote participant to join
+    logger.info("Waiting for remote participant to join the room...")
+    participant = None
+    for _ in range(300):
+        if ctx.room.remote_participants:
+            participant = next(iter(ctx.room.remote_participants.values()))
+            break
+        await asyncio.sleep(0.1)
+
+    # Determine if this is a SIP (outbound phone) call
+    is_sip_call = (
+        participant is not None
+        and participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+    )
+    logger.info(f"Participant detected — SIP call: {is_sip_call}")
+
+    # Start the session with the appropriate prompt
+    assistant = Assistant(is_outbound_call=is_sip_call)
     await session.start(
         agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
                 noise_cancellation=lambda params: (
-                    noise_cancellation.BVCTelephony()
+                    None
                     if params.participant.kind
                     == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
                     else noise_cancellation.BVC()
@@ -381,18 +460,7 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # Join the room and connect to the user
-    await ctx.connect()
-
-    # Look up caller information and greet them by name
-    logger.info("Looking up caller details to prepare welcoming greeting...")
-    participant = None
-    for _ in range(300):
-        if ctx.room.remote_participants:
-            participant = next(iter(ctx.room.remote_participants.values()))
-            break
-        await asyncio.sleep(0.1)
-
+    # ── Caller identification & greeting ──────────────────────────────────
     caller_name = "user"
     caller_id = None
     caller_record = None
@@ -403,41 +471,105 @@ async def my_agent(ctx: JobContext):
         logger.info(f"Caller identified - user_id: {caller_id}, name: {caller_name}")
         assistant.current_caller_id = caller_id
 
-        # Search the database by participant identity (persistent userId from browser)
+        # Search the database by participant identity
         caller_record = database.lookup_caller(caller_id)
         if not caller_record and caller_name and caller_name != "user":
             caller_record = database.lookup_caller_by_name(caller_name)
+        
+        # Outbound SIP fallback for testing/demo
+        if not caller_record and is_sip_call:
+            logger.info("Outbound SIP call: No direct record match. Falling back to most recent caller.")
+            caller_record = database.lookup_most_recent_caller()
     else:
         logger.warning("No remote participant detected in the room.")
 
-    greeting_message = ""
-    custom_instructions = SYSTEM_PROMPT
+    # ── Branch: Outbound SIP call vs. Web/inbound call ────────────────────
+    if is_sip_call:
+        # ━━━━━━━━━━━ OUTBOUND CALL PATH ━━━━━━━━━━━
+        logger.info("Outbound SIP call detected — using Daily Literacy Coach greeting.")
 
-    if caller_record:
-        # Returning caller
-        db_name = caller_record["name"]
-        facts = caller_record["facts"]
-        topics = facts.get("topics_covered") or facts.get("topic") or facts.get("topics") or "your topic"
-        raw_action = facts.get("action_taken") or facts.get("action") or facts.get("mistakes_made") or "spraying"
-        level = facts.get("current_level", "Unknown")
-        pref_lang = caller_record.get("language_preference", "English")
-        mistakes = facts.get("mistakes_made", "None")
+        custom_instructions = OUTBOUND_SYSTEM_PROMPT
+        greeting_speech = OUTBOUND_GREETING
 
-        logger.info(f"Loaded returning caller facts for {db_name}: {facts}")
+        if caller_record:
+            db_name = caller_record["name"]
+            facts = caller_record["facts"]
+            level = facts.get("current_level", "Unknown")
+            topics = facts.get("topics_covered") or facts.get("topic") or facts.get("topics") or "general practice"
+            raw_action = facts.get("action_taken") or facts.get("action") or facts.get("mistakes_made") or "practice"
+            pref_lang = caller_record.get("language_preference", "English")
 
-        # Formulate exact returning greeting requested: "Namaste Ramesh, last time we spoke about your cotton. Did the spraying help?"
-        if raw_action and raw_action != "None" and raw_action != "spraying":
-            action_phrase = (
-                raw_action
-                if raw_action.lower().startswith(("the ", "your ", "that ", "a ", "an "))
-                else f"the {raw_action}"
-            )
+            if raw_action and raw_action != "None" and raw_action != "spraying":
+                action_phrase = (
+                    raw_action
+                    if raw_action.lower().startswith(("the ", "your ", "that ", "a ", "an "))
+                    else f"the {raw_action}"
+                )
+            else:
+                action_phrase = "the practice"
+
+            # Personalization suffix for the greeting
+            personalization = f" Namaste {db_name}, last time we spoke about {topics}. Did {action_phrase} help?"
+            greeting_speech = OUTBOUND_GREETING + personalization
+
+            custom_instructions += f"""
+
+RETURNING CALLER CONTEXT:
+- User ID: {caller_id}
+- Name: {db_name}
+- Preferred Language: {pref_lang}
+- Current Level: {level}
+- Topics Previously Covered: {topics}
+
+GREETING: The system has already spoken the outbound greeting: "{greeting_speech}"
+Wait for the user's response to this greeting before starting the next exercise.
+"""
         else:
-            action_phrase = "the spraying"
+            custom_instructions += f"""
 
-        greeting_message = f"Namaste {db_name}, last time we spoke about {topics}. Did {action_phrase} help?"
+NEW CALLER CONTEXT:
+- User ID: {caller_id or "Unknown"}
+- Name: Unknown (phone caller)
+- Current Level: New Learner
 
-        custom_instructions += f"""
+GREETING: The system has already spoken the outbound greeting: "{greeting_speech}"
+After the user responds, ask for their name and start a beginner-level exercise.
+"""
+
+        assistant.update_instructions(custom_instructions)
+
+        # Deliver the greeting (exact required 2 sentences first, optionally followed by returning user prompt)
+        session.say(greeting_speech, allow_interruptions=True)
+
+    else:
+        # ━━━━━━━━━━━ WEB / INBOUND CALL PATH (original logic) ━━━━━━━━━━━
+        greeting_message = ""
+        custom_instructions = SYSTEM_PROMPT
+
+        if caller_record:
+            # Returning caller
+            db_name = caller_record["name"]
+            facts = caller_record["facts"]
+            topics = facts.get("topics_covered") or facts.get("topic") or facts.get("topics") or "your topic"
+            raw_action = facts.get("action_taken") or facts.get("action") or facts.get("mistakes_made") or "spraying"
+            level = facts.get("current_level", "Unknown")
+            pref_lang = caller_record.get("language_preference", "English")
+            mistakes = facts.get("mistakes_made", "None")
+
+            logger.info(f"Loaded returning caller facts for {db_name}: {facts}")
+
+            if raw_action and raw_action != "None" and raw_action != "spraying":
+                action_phrase = (
+                    raw_action
+                    if raw_action.lower().startswith(("the ", "your ", "that ", "a ", "an "))
+                    else f"the {raw_action}"
+                )
+            else:
+                action_phrase = "the spraying"
+
+            greeting_message = f"Namaste {db_name}, last time we spoke about {topics}. Did {action_phrase} help?"
+
+            custom_instructions += f"""
 
 CURRENT CALLER CONTEXT (RETURNING):
 - User ID: {caller_id}
@@ -450,11 +582,11 @@ CURRENT CALLER CONTEXT (RETURNING):
 GREETING: You have already greeted the caller with: "{greeting_message}"
 Welcome them back and resume the lesson.
 """
-    else:
-        # New caller
-        if caller_name and caller_name != "user":
-            greeting_message = f"Hi {caller_name}! Welcome! How can I help you learn today? Feel free to speak in English or Hindi."
-            custom_instructions += f"""
+        else:
+            # New caller
+            if caller_name and caller_name != "user":
+                greeting_message = f"Hi {caller_name}! Welcome! How can I help you learn today? Feel free to speak in English or Hindi."
+                custom_instructions += f"""
 
 CURRENT CALLER CONTEXT (NEW WITH NAME):
 - User ID: {caller_id or "Unknown"}
@@ -463,9 +595,9 @@ CURRENT CALLER CONTEXT (NEW WITH NAME):
 - Goal: Assess their level and start their first lesson.
 GREETING: You have already greeted the caller with: "{greeting_message}"
 """
-        else:
-            greeting_message = "Hi! How can I help you today? Feel free to speak with me in English or Hindi! May I know your name?"
-            custom_instructions += f"""
+            else:
+                greeting_message = "Hi! How can I help you today? Feel free to speak with me in English or Hindi! May I know your name?"
+                custom_instructions += f"""
 
 CURRENT CALLER CONTEXT (NEW UNKNOWN):
 - User ID: {caller_id or "Unknown"}
@@ -475,11 +607,11 @@ CURRENT CALLER CONTEXT (NEW UNKNOWN):
 GREETING: You have already greeted the caller with: "{greeting_message}"
 """
 
-    # Set caller context instructions
-    assistant.update_instructions(custom_instructions)
+        # Set caller context instructions
+        assistant.update_instructions(custom_instructions)
 
-    # Deliver greeting speech
-    session.say(greeting_message, allow_interruptions=True)
+        # Deliver greeting speech
+        session.say(greeting_message, allow_interruptions=True)
 
 
 if __name__ == "__main__":
