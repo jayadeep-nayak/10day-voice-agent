@@ -3,8 +3,8 @@ make_outbound_call.py — Trigger an outbound SIP call to Linphone via LiveKit S
 
 Usage:
     uv run python src/make_outbound_call.py
-    uv run python src/make_outbound_call.py --sip-uri "sip:jayadeep@sip.linphone.org"
-    uv run python src/make_outbound_call.py --sip-uri "sip:jayadeep@sip.linphone.org" --room "daily-practice-room"
+    uv run python src/make_outbound_call.py --sip-uri "sip:username@sip.linphone.org"
+    uv run python src/make_outbound_call.py --sip-uri "sip:username@sip.linphone.org" --room "daily-practice-room"
 
 The script:
   1. Loads LiveKit credentials from .env.local
@@ -19,7 +19,7 @@ Prerequisites:
   - A configured SIP Outbound Trunk in LiveKit Cloud pointing to sip.linphone.org
   - LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET in .env.local
   - SIP_OUTBOUND_TRUNK_ID in .env.local (from LiveKit Cloud dashboard)
-  - LINPHONE_SIP_URI in .env.local (e.g. sip:jayadeep@sip.linphone.org)
+  - LINPHONE_SIP_URI in .env.local (e.g. sip:username@sip.linphone.org)
 """
 
 import argparse
@@ -134,14 +134,14 @@ def main():
         epilog="""
 Examples:
   uv run python src/make_outbound_call.py
-  uv run python src/make_outbound_call.py --sip-uri "sip:jayadeep@sip.linphone.org"
-  uv run python src/make_outbound_call.py --sip-uri "sip:jayadeep@sip.linphone.org" --room "practice-42"
+  uv run python src/make_outbound_call.py --sip-uri "sip:username@sip.linphone.org"
+  uv run python src/make_outbound_call.py --sip-uri "sip:username@sip.linphone.org" --room "practice-42"
         """,
     )
     parser.add_argument(
         "--sip-uri",
         default=None,
-        help='Destination SIP URI (e.g. "sip:jayadeep@sip.linphone.org"). '
+        help='Destination SIP URI (e.g. "sip:username@sip.linphone.org"). '
              "Falls back to LINPHONE_SIP_URI env var if not provided.",
     )
     parser.add_argument(
@@ -157,7 +157,7 @@ Examples:
     if not sip_uri:
         logger.error(
             "No SIP URI provided. Use --sip-uri or set LINPHONE_SIP_URI in .env.local\n"
-            '  Example: --sip-uri "sip:jayadeep@sip.linphone.org"'
+            '  Example: --sip-uri "sip:username@sip.linphone.org"'
         )
         sys.exit(1)
 

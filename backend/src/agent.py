@@ -282,6 +282,65 @@ class Assistant(Agent):
             logger.error(f"Error saving caller facts: {e}")
             return f"Error saving caller facts: {e!s}"
 
+    @function_tool
+    async def create_escalation(
+        self,
+        context: RunContext,
+        who_needs_help: str,
+        what_happened: str,
+        agent_checks: str,
+        urgency: Optional[str] = "medium",
+        language_preference: Optional[str] = "English",
+        preferred_followup: Optional[str] = "call-back",
+    ) -> str:
+        """Create an escalation request to connect the learner with a human teacher.
+        Only call this tool AFTER the caller gives verbal permission to store their information in the database.
+        Do NOT call this tool if the caller says no or declines.
+        NEVER include passwords, OTPs, PINs, account numbers, or other private information.
+
+        Args:
+            who_needs_help: The caller's name (e.g. 'Ramesh', 'Jay').
+            what_happened: A short summary of what happened — why help is needed (e.g. 'Learner is frustrated with grade 2 reading exercises and feeling overwhelmed').
+            agent_checks: What the agent already tried before escalating (e.g. 'Offered encouragement, simplified the exercise, asked if they wanted to try a different topic').
+            urgency: How urgent the request is. Options: 'high' (learner is very upset/crying) or 'medium' (learner asked for teacher). Defaults to 'medium'.
+            language_preference: The caller's preferred language (e.g. 'English', 'Hindi'). Defaults to 'English'.
+            preferred_followup: How the caller wants to be contacted. Options: 'call-back', 'text', 'email'. Defaults to 'call-back'.
+        """
+        caller_id = self.current_caller_id or "unknown"
+        logger.info(
+            f"Tool create_escalation called: who={who_needs_help}, "
+            f"urgency={urgency}, caller_id={caller_id}"
+        )
+
+        try:
+            reference_id = database.create_escalation(
+                who_needs_help=who_needs_help,
+                caller_id=caller_id,
+                what_happened=what_happened,
+                agent_checks=agent_checks or "None",
+                urgency=urgency or "medium",
+                language_preference=language_preference or "English",
+                preferred_followup=preferred_followup or "call-back",
+            )
+            logger.info(f"Escalation created successfully: {reference_id}")
+            return (
+                f"Escalation request created successfully.\n"
+                f"Reference ID: {reference_id}\n"
+                f"Who needs help: {who_needs_help}\n"
+                f"Urgency: {urgency}\n"
+                f"Status: Open — a teacher will review this request.\n"
+                f"IMPORTANT: Tell the caller their reference number is {reference_id} "
+                f"and that a teacher will reach out within 24 hours."
+            )
+        except Exception as e:
+            logger.error(f"Error creating escalation: {e}")
+            return (
+                "FAILURE_NOTICE: Could not create the escalation request due to a system error. "
+                "You MUST announce out loud: 'I'm sorry, I had trouble saving your request due to a "
+                "temporary error. Please try calling back and asking for a teacher again, "
+                "and we will make sure someone helps you.'"
+            )
+
 
 server = AgentServer()
 

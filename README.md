@@ -360,7 +360,7 @@ Your Linphone client will ring. Accept the call to begin your practice!
    Immediately upon pickup, the agent speaks:
    > *"Hi, this is your Daily Literacy Coach calling for your scheduled reading practice. If you want to stop these calls at any time, just say 'cancel my calls'."*
    
-   If you have a returning profile in the database, the agent dynamically appends personalization based on your last lesson (e.g. *"Namaste Jay, last time we spoke about beginner English. Did the practice help?"*).
+    If you have a returning profile in the database, the agent dynamically appends personalization based on your last lesson (e.g. *"Namaste student, last time we spoke about beginner English. Did the practice help?"*).
 
 2. **Cancel Calls / Opt-Out**:
    If you say *"cancel my calls"*, *"unsubscribe"*, or *"stop calling me"*, the agent calls the `cancel_daily_calls` tool to record your opt-out, states an confirmation message, and gracefully disconnects the call.

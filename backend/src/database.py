@@ -30,6 +30,23 @@ def initialize_db():
             )
         """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS escalations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reference_id TEXT UNIQUE NOT NULL,
+                who_needs_help TEXT NOT NULL,
+                caller_id TEXT,
+                what_happened TEXT NOT NULL,
+                agent_checks TEXT,
+                urgency TEXT DEFAULT 'medium',
+                language_preference TEXT DEFAULT 'English',
+                preferred_followup TEXT DEFAULT 'call-back',
+                status TEXT DEFAULT 'open',
+                created_at TEXT NOT NULL
+            )
+        """
+        )
         conn.commit()
 
 
@@ -152,4 +169,143 @@ def lookup_most_recent_caller() -> dict | None:
             "facts": facts,
             "last_interaction": row[4],
         }
+
+
+# ── Escalation helpers ────────────────────────────────────────────────────────
+
+def _generate_reference_id() -> str:
+    """Generate a unique escalation reference ID like ESC-20260812-0003."""
+    date_str = datetime.now().strftime("%Y%m%d")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM escalations WHERE reference_id LIKE ?",
+            (f"ESC-{date_str}-%",),
+        )
+        count = cursor.fetchone()[0]
+    seq = count + 1
+    return f"ESC-{date_str}-{seq:04d}"
+
+
+def create_escalation(
+    who_needs_help: str,
+    caller_id: str,
+    what_happened: str,
+    agent_checks: str,
+    urgency: str = "medium",
+    language_preference: str = "English",
+    preferred_followup: str = "call-back",
+) -> str:
+    """Store an escalation request and return its reference ID."""
+    reference_id = _generate_reference_id()
+    created_at = datetime.now().isoformat()
+
+    logger.info(
+        f"Creating escalation {reference_id} for '{who_needs_help}' "
+        f"(urgency={urgency}): {what_happened}"
+    )
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO escalations
+                (reference_id, who_needs_help, caller_id, what_happened,
+                 agent_checks, urgency, language_preference,
+                 preferred_followup, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+            """,
+            (
+                reference_id,
+                who_needs_help,
+                caller_id,
+                what_happened,
+                agent_checks,
+                urgency,
+                language_preference,
+                preferred_followup,
+                created_at,
+            ),
+        )
+        conn.commit()
+
+    return reference_id
+
+
+def get_open_escalations() -> list[dict]:
+    """Return all escalation requests with status 'open'."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT reference_id, who_needs_help, caller_id, what_happened,
+                   agent_checks, urgency, language_preference,
+                   preferred_followup, status, created_at
+            FROM escalations
+            WHERE status = 'open'
+            ORDER BY created_at DESC
+            """
+        )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "reference_id": r[0],
+            "who_needs_help": r[1],
+            "caller_id": r[2],
+            "what_happened": r[3],
+            "agent_checks": r[4],
+            "urgency": r[5],
+            "language_preference": r[6],
+            "preferred_followup": r[7],
+            "status": r[8],
+            "created_at": r[9],
+        }
+        for r in rows
+    ]
+
+
+def get_all_escalations() -> list[dict]:
+    """Return all escalation requests (open and resolved)."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT reference_id, who_needs_help, caller_id, what_happened,
+                   agent_checks, urgency, language_preference,
+                   preferred_followup, status, created_at
+            FROM escalations
+            ORDER BY created_at DESC
+            """
+        )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "reference_id": r[0],
+            "who_needs_help": r[1],
+            "caller_id": r[2],
+            "what_happened": r[3],
+            "agent_checks": r[4],
+            "urgency": r[5],
+            "language_preference": r[6],
+            "preferred_followup": r[7],
+            "status": r[8],
+            "created_at": r[9],
+        }
+        for r in rows
+    ]
+
+
+def resolve_escalation(reference_id: str) -> bool:
+    """Mark an escalation as resolved. Returns True if a row was updated."""
+    logger.info(f"Resolving escalation {reference_id}")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE escalations SET status = 'resolved' WHERE reference_id = ? AND status = 'open'",
+            (reference_id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
