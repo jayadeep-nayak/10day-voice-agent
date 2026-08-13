@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -45,6 +46,9 @@ class Assistant(Agent):
         super().__init__(instructions=prompt)
         self.current_caller_id = None
         self.is_outbound_call = is_outbound_call
+        self.call_id = None
+        self.exercises_attempted = 0
+        self.exercises_passed = 0
 
     @function_tool
     async def fetch_next_exercise(
@@ -62,6 +66,7 @@ class Assistant(Agent):
             topic: Optional subject filter. Options: 'english', 'math', 'vocabulary', 'reading'. Defaults to None (any topic).
         """
         logger.info(f"Tool fetch_next_exercise called with level={level}, topic={topic}")
+        self.exercises_attempted += 1
         try:
             res = await exercises.fetch_next_exercise_data(
                 level=level or "beginner", topic=topic
@@ -118,6 +123,9 @@ class Assistant(Agent):
                 expected_answer=expected_answer,
             )
             logger.info(f"score_spoken_answer_data result: {res}")
+            if res.get("passed"):
+                self.exercises_passed += 1
+                logger.info(f"Exercise passed! Total passed: {self.exercises_passed}")
             return (
                 f"Evaluation Result for Exercise {res['exercise_id']}:\n"
                 f"Spoken Answer: '{res['spoken_answer']}'\n"
@@ -504,6 +512,26 @@ async def my_agent(ctx: JobContext):
 
     # Start the session with the appropriate prompt
     assistant = Assistant(is_outbound_call=is_sip_call)
+
+    # Generate a unique call ID for tracking
+    call_id = f"CALL-{uuid.uuid4().hex[:8].upper()}"
+    assistant.call_id = call_id
+
+    # Record call outcome when session ends
+    @ctx.room.on("disconnected")
+    def on_room_disconnected():
+        outcome = "successful" if assistant.exercises_passed >= 1 else "failed"
+        logger.info(
+            f"Call {call_id} ended — outcome={outcome}, "
+            f"attempted={assistant.exercises_attempted}, passed={assistant.exercises_passed}"
+        )
+        database.record_call_end(
+            call_id=call_id,
+            outcome=outcome,
+            exercises_attempted=assistant.exercises_attempted,
+            exercises_passed=assistant.exercises_passed,
+        )
+
     await session.start(
         agent=assistant,
         room=ctx.room,
@@ -541,6 +569,24 @@ async def my_agent(ctx: JobContext):
             caller_record = database.lookup_most_recent_caller()
     else:
         logger.warning("No remote participant detected in the room.")
+
+    # Record call start now that caller_id and caller_name are known
+    call_type = "sip" if is_sip_call else "web"
+    display_name = "unknown"
+    if caller_record:
+        display_name = caller_record["name"]
+    elif caller_name and caller_name != "user":
+        display_name = caller_name
+    elif caller_id:
+        display_name = caller_id
+
+    database.record_call_start(
+        call_id=call_id,
+        caller_id=caller_id or "unknown",
+        caller_name=display_name,
+        call_type=call_type,
+    )
+
 
     # ── Branch: Outbound SIP call vs. Web/inbound call ────────────────────
     if is_sip_call:

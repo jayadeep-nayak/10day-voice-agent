@@ -229,12 +229,32 @@ export default async function RootLayout({ children }: RootLayoutProps) {
                 </span>
               </div>
 
-              {/* Single page indicator */}
-              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#0C1019]/80 px-3.5 py-1 backdrop-blur-md">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-                <span className="text-xs font-semibold text-[#8E9BAE] uppercase tracking-wider">
-                  AI Companion
-                </span>
+              {/* Single page indicator & Dashboard shortcut */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#0C1019]/80 px-3.5 py-1 backdrop-blur-md">
+                  <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-xs font-semibold text-[#8E9BAE] uppercase tracking-wider">
+                    AI Companion
+                  </span>
+                </div>
+
+                <a
+                  href="http://localhost:5050"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 hover:bg-cyan-500/20 px-3.5 py-1 text-xs font-semibold text-[#38BDF8] hover:text-[#FAF8F5] transition-all duration-200 backdrop-blur-md shadow-md shadow-cyan-950/20 hover:scale-[1.03]"
+                >
+                  📋 Escalation Dashboard
+                </a>
+
+                <a
+                  href="http://localhost:5051"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 px-3.5 py-1 text-xs font-semibold text-[#4ADE80] hover:text-[#FAF8F5] transition-all duration-200 backdrop-blur-md shadow-md shadow-emerald-950/20 hover:scale-[1.03]"
+                >
+                  📊 Call Analytics
+                </a>
               </div>
             </nav>
           </header>

@@ -47,6 +47,22 @@ def initialize_db():
             )
         """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS call_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                call_id TEXT UNIQUE NOT NULL,
+                caller_id TEXT,
+                caller_name TEXT,
+                call_type TEXT DEFAULT 'web',
+                outcome TEXT DEFAULT 'in_progress',
+                exercises_attempted INTEGER DEFAULT 0,
+                exercises_passed INTEGER DEFAULT 0,
+                started_at TEXT NOT NULL,
+                ended_at TEXT
+            )
+        """
+        )
         conn.commit()
 
 
@@ -309,3 +325,83 @@ def resolve_escalation(reference_id: str) -> bool:
         conn.commit()
         return cursor.rowcount > 0
 
+
+# ── Call Logging helpers ──────────────────────────────────────────────────────
+
+def record_call_start(call_id: str, caller_id: str, caller_name: str, call_type: str = "web") -> None:
+    """Record the start of a new call. No sensitive data is stored."""
+    started_at = datetime.now().isoformat()
+    logger.info(f"Recording call start: call_id={call_id}, caller={caller_name}, type={call_type}")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO call_logs (call_id, caller_id, caller_name, call_type, outcome, started_at)
+            VALUES (?, ?, ?, ?, 'in_progress', ?)
+            """,
+            (call_id, caller_id, caller_name, call_type, started_at),
+        )
+        conn.commit()
+
+
+def record_call_end(call_id: str, outcome: str, exercises_attempted: int, exercises_passed: int) -> None:
+    """Record the end of a call with its outcome (successful/failed)."""
+    ended_at = datetime.now().isoformat()
+    logger.info(
+        f"Recording call end: call_id={call_id}, outcome={outcome}, "
+        f"attempted={exercises_attempted}, passed={exercises_passed}"
+    )
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE call_logs
+            SET outcome = ?, exercises_attempted = ?, exercises_passed = ?, ended_at = ?
+            WHERE call_id = ?
+            """,
+            (outcome, exercises_attempted, exercises_passed, ended_at, call_id),
+        )
+        conn.commit()
+
+
+def get_call_stats() -> dict:
+    """Return aggregated call stats: total, successful, failed counts."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM call_logs")
+        total = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM call_logs WHERE outcome = 'successful'")
+        successful = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM call_logs WHERE outcome = 'failed'")
+        failed = cursor.fetchone()[0]
+    return {"total": total, "successful": successful, "failed": failed}
+
+
+def get_recent_calls(limit: int = 20) -> list[dict]:
+    """Return recent call summaries. No transcripts or sensitive data."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT call_id, caller_name, call_type, outcome,
+                   exercises_attempted, exercises_passed, started_at, ended_at
+            FROM call_logs
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+    return [
+        {
+            "call_id": r[0],
+            "caller_name": r[1],
+            "call_type": r[2],
+            "outcome": r[3],
+            "exercises_attempted": r[4],
+            "exercises_passed": r[5],
+            "started_at": r[6],
+            "ended_at": r[7],
+        }
+        for r in rows
+    ]

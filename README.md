@@ -117,6 +117,9 @@ cd frontend && pnpm dev
 
 # Terminal 4 — Escalation Dashboard (Optional)
 cd backend && uv run python src/escalation_dashboard.py
+
+# Terminal 5 — Call Analytics Dashboard (Optional)
+cd backend && uv run python src/call_analytics_dashboard.py
 ```
 
 Then open **http://localhost:3000** in your browser.
@@ -324,6 +327,16 @@ To view and manage open student escalation requests:
    uv run python src/escalation_dashboard.py
    ```
 2. Open **http://localhost:5050** in your web browser. This interface allows you to view active and resolved escalations, review what the agent already checked, check language preferences, and mark escalations as resolved.
+
+### Call Analytics Dashboard
+
+To view call outcomes and stats (Total Calls, Successful Calls, Failed Calls, and Success Rate):
+1. Run the dashboard server:
+   ```bash
+   cd backend
+   uv run python src/call_analytics_dashboard.py
+   ```
+2. Open **http://localhost:5051** in your web browser. This interface shows call volumes, how many exercises were completed/passed, and includes a live 5-second auto-refresh. No sensitive caller details or transcripts are displayed.
 
 ---
 
