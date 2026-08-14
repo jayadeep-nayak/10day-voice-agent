@@ -1,406 +1,379 @@
-# Voice Agent Starter — Powered by Murf Falcon
+# 🎙️ Voice Agent Starter — Learning & Literacy AI
 
-Build a production voice AI agent in 5 minutes. Powered by the fastest TTS on the market - swap the system prompt to build anything from customer support to language tutors.
+Build a production-grade, multi-agent voice AI companion in minutes. Powered by **[Murf Falcon](https://murf.ai/api/docs/text-to-speech/streaming)** — the fastest streaming Text-to-Speech engine on the market — and **[LiveKit Agents](https://docs.livekit.io/agents)**.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Murf Falcon](https://img.shields.io/badge/TTS-Murf%20Falcon-6366F1)](https://murf.ai/api/docs/text-to-speech/streaming) [![LiveKit](https://img.shields.io/badge/Transport-LiveKit-002cf2)](https://docs.livekit.io) [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+This repository features an end-to-end voice assistant equipped with **dynamic exercise generation**, **spoken answer evaluation**, **intelligent multi-agent handoffs (Nova & Zenith)**, **human teacher escalation workflows**, **real-time management dashboards**, and **SIP telephony outbound practice calling**.
 
----
-
-## Why Murf Falcon
-
-- **55ms model latency** - fastest production TTS
-- **130ms time-to-first-audio** across 10+ global regions
-- **$0.01/1000 characters** - up to 10x cheaper than alternatives
-- **150+ voices** across 35+ languages
-- **99.38% pronunciation accuracy**
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Murf Falcon](https://img.shields.io/badge/TTS-Murf%20Falcon-6366F1)](https://murf.ai/api/docs/text-to-speech/streaming)
+[![LiveKit](https://img.shields.io/badge/Transport-LiveKit-002cf2)](https://docs.livekit.io)
+[![Next.js 15](https://img.shields.io/badge/Frontend-Next.js%2015-black?logo=next.js)](https://nextjs.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Deepgram](https://img.shields.io/badge/STT-Deepgram%20Nova--3-13EF95)](https://deepgram.com)
+[![Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-4285F4?logo=google)](https://aistudio.google.com)
 
 ---
 
-## Architecture
+## ⚡ Why Murf Falcon
+
+- **55ms model latency** — Industry-leading, ultra-fast streaming speech synthesis.
+- **130ms time-to-first-audio (TTFA)** across 10+ global regions.
+- **$0.01 / 1,000 characters** — Up to 10x more cost-effective than legacy TTS providers.
+- **150+ natural voices** across 35+ languages and regional accents.
+- **99.38% pronunciation accuracy** for crisp, natural educational conversations.
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
-flowchart LR
-    A[🎙️ User speaks] -->|audio| B[Deepgram STT]
-    B -->|text| C[LLM]
-    C -->|response text| D[Murf Falcon TTS]
-    D -->|audio| E[LiveKit]
-    E -->|stream| F[🔊 User hears]
+flowchart TD
+    subgraph ClientLayer [Client Interfaces]
+        WebClient["💻 Web Browser (Next.js 15 UI)"]
+        SIPClient["📱 SIP Phone (Linphone App)"]
+    end
 
-    style A fill:#444441,stroke:#888780,color:#fff
-    style B fill:#185FA5,stroke:#85B7EB,color:#fff
-    style C fill:#534AB7,stroke:#AFA9EC,color:#fff
-    style D fill:#0F6E56,stroke:#5DCAA5,color:#fff
-    style E fill:#D85A30,stroke:#F0997B,color:#fff
-    style F fill:#444441,stroke:#888780,color:#fff
+    subgraph TransportLayer [Real-Time Transport & Media]
+        LKServer["🌐 LiveKit Server / Cloud (WebRTC / SIP Trunk)"]
+        NoiseCancel["🔇 Noise Cancellation & Silero VAD"]
+        TurnDetector["⏱️ Multilingual Turn Detector"]
+    end
+
+    subgraph AgentPipeline [Voice AI Pipeline]
+        STT["🎙️ Deepgram STT (nova-3)"]
+        LLM["🧠 Google Gemini / OpenAI LLM"]
+        TTS["🔊 Murf Falcon TTS (Ultra-Low Latency)"]
+    end
+
+    subgraph MultiAgentSystem [Specialized Multi-Agent Core]
+        Nova["👩‍🏫 Nova — Primary Literacy & Learning Coach"]
+        Zenith["📐 Zenith — Maths Practice Specialist"]
+    end
+
+    subgraph DomainData [Data & Integration Layer]
+        DatamuseAPI["🌐 Datamuse Live Vocabulary API"]
+        LocalCurriculum["📚 Curated Graded Exercises (Beginner to Grade 4)"]
+        Database[("💾 SQLite Database (voice_agent.db)")]
+    end
+
+    subgraph Dashboards [Monitoring & Management Dashboards]
+        EscalationDash["🚨 Teacher Escalation Dashboard (Port 5050)"]
+        AnalyticsDash["📊 Call Analytics & Success Dashboard (Port 5051)"]
+    end
+
+    WebClient <-->|WebRTC Audio Stream| LKServer
+    SIPClient <-->|SIP Audio Stream| LKServer
+    LKServer <--> NoiseCancel <--> TurnDetector <--> STT
+    STT --> LLM
+    LLM <--> Nova
+    Nova <-->|Auto Handoff on Complex Math| Zenith
+    Nova & Zenith <-->|Fetch / Score| DatamuseAPI & LocalCurriculum
+    Nova & Zenith <-->|Consent & Escalation Records| Database
+    Database <--> EscalationDash & AnalyticsDash
+    LLM --> TTS
+    TTS -->|Streaming Audio| LKServer
 ```
 
 ---
 
-## Quickstart
+## 🌟 Key Features
+
+### 1. 👩‍🏫 Nova — Literacy & Learning Companion
+- **Dynamic Exercise Retrieval (`fetch_next_exercise`)**: Pulls real-time vocabulary, phonics, and reading exercises via the live [Datamuse API](https://api.datamuse.com/words) or local graded curriculum (`beginner`, `grade_1` through `grade_4`, `intermediate`, `advanced`).
+- **Spoken Answer Scoring (`score_spoken_answer`)**: Computes character distance (Levenshtein), word overlap ratio, and phonetic similarity to provide real-time spoken feedback.
+- **Out-Loud Failure Handling**: If an external API encounters a network timeout, Nova immediately announces the fallback out loud and transitions seamlessly to offline curriculum without hallucinating.
+- **Multilingual Adaptability**: Seamlessly converses and switches between **English**, **Hindi**, and **Hinglish**.
+- **Privacy & Consent Guardrail**: Mandatory verbal consent check before saving any learner facts (`save_caller_facts`).
+
+### 2. 📐 Zenith — Dedicated Maths Practice Specialist
+- **Automated Agent Handoff (`handoff_to_math_specialist`)**: When calculations exceed single-digit arithmetic or involve multi-step word problems, algebra, fractions, or times tables, Nova hands off the user directly to Zenith.
+- **Speech-Optimized Math Formatting**: Formulates solutions strictly in natural spoken words (e.g., `"22 times 96 equals 2112"`), eliminating LaTeX delimiters and `$` symbols that cause TTS engines to say *"dollar"*.
+- **Visual Handoff Indicator**: The frontend UI displays an active specialist badge and dedicated Zenith overlay whenever handoff occurs.
+
+### 3. 🚨 Human Teacher Escalations
+- **Strict Two-Condition Triggers**: Escalates only when the learner exhibits emotional distress/frustration or explicitly asks for a human teacher.
+- **Verbal Consent Workflow**: Explains what information will be logged and requests user confirmation prior to calling `create_escalation`.
+- **Teacher Escalation Dashboard (`http://localhost:5050`)**: Web portal for educators to review active escalations, learner language preferences, prior agent actions, and mark tickets as resolved.
+
+### 4. 📊 Call Analytics Dashboard (`http://localhost:5051`)
+- Real-time metrics on **Total Calls**, **Successful Calls**, **Failed Calls**, and **Success Rate**.
+- Tracks **Exercises Attempted vs. Passed** with 5-second live auto-refresh.
+- **Privacy-Preserving**: No sensitive personal data, OTPs, PINs, or conversation transcripts are exposed.
+
+### 5. 📞 Daily Outbound Practice Calls (Linphone SIP)
+- Scheduled outbound dialer via LiveKit SIP trunk (`make_outbound_call.py`).
+- **Required Trust Greeting**: Immediately delivers a clear identity greeting and transparent opt-out instruction upon pickup.
+- **Instant Opt-Out (`cancel_daily_calls`)**: Recognizes cancellation requests (*"cancel my calls"*, *"unsubscribe"*) and updates the database to prevent future calls.
+- **Returning Caller Personalization**: Dynamically retrieves previous learning history (`lookup_caller`) to personalize follow-up sessions.
+
+---
+
+## 🚀 Quickstart
 
 ### Prerequisites
 
-- **Python** 3.10+
-- **[uv](https://docs.astral.sh/uv/)** - fast Python package manager
+- **Python 3.10+**
+- **[uv](https://docs.astral.sh/uv/)** — Ultra-fast Python package manager
   ```bash
   # macOS/Linux
   curl -LsSf https://astral.sh/uv/install.sh | sh
+
   # Windows (PowerShell)
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
   ```
-- **Node.js** 18+
-- **pnpm** — fast Node package manager
+- **Node.js 18+** & **pnpm**
   ```bash
   npm install -g pnpm
   ```
-- A [LiveKit](https://cloud.livekit.io/) project (free tier available)
+- A **[LiveKit Cloud](https://cloud.livekit.io/)** project (or local `livekit-server`)
+- API keys: **Murf Falcon**, **Deepgram**, and **Google Gemini** (or **OpenAI**)
 
-### Step 1: Clone the repo
+---
+
+### Step 1: Clone the Repository
 
 ```bash
 git clone https://github.com/murf-ai/murf-livekit-starter.git
 cd murf-livekit-starter
 ```
 
-### Step 2: Set up environment variables
+---
 
-Create `.env.local` in both `backend/` and `frontend/` (copy from `.env.example` in each). You need:
+### Step 2: Configure Environment Variables
 
-| Variable                               | Where to get it                                        | Required |
-| -------------------------------------- | ------------------------------------------------------ | -------- |
-| `LIVEKIT_URL`                          | LiveKit Cloud dashboard                                | Yes      |
-| `LIVEKIT_API_KEY`                      | LiveKit Cloud dashboard                                | Yes      |
-| `LIVEKIT_API_SECRET`                   | LiveKit Cloud dashboard                                | Yes      |
-| `MURF_API_KEY`                         | [murf.ai/api/dashboard](https://murf.ai/api/dashboard) | Yes      |
-| `DEEPGRAM_API_KEY`                     | [deepgram.com](https://deepgram.com)                   | Yes      |
-| `GOOGLE_API_KEY` (or `OPENAI_API_KEY`) | Depends on LLM choice                                  | Yes      |
+Create `.env.local` files in both `backend/` and `frontend/` (sample templates available in `.env.example`):
 
-### Step 3: Install backend dependencies
+#### Backend (`backend/.env.local`)
+```env
+LIVEKIT_URL=wss://<your-project>.livekit.cloud
+LIVEKIT_API_KEY=APIxxxxxxxxxxxx
+LIVEKIT_API_SECRET=secretxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+MURF_API_KEY=your_murf_api_key
+DEEPGRAM_API_KEY=your_deepgram_api_key
+GOOGLE_API_KEY=your_gemini_api_key
+
+# Optional: For Linphone SIP Outbound Calling
+SIP_OUTBOUND_TRUNK_ID=ST_xxxxxxxxxxxx
+LINPHONE_SIP_URI=sip:username@sip.linphone.org
+```
+
+#### Frontend (`frontend/.env.local`)
+```env
+LIVEKIT_URL=wss://<your-project>.livekit.cloud
+LIVEKIT_API_KEY=APIxxxxxxxxxxxx
+LIVEKIT_API_SECRET=secretxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+---
+
+### Step 3: Install Dependencies & Download Models
 
 ```bash
+# 1. Install backend dependencies and download models
 cd backend
 uv sync
 uv run python src/agent.py download-files
-```
 
-### Step 4: Install frontend dependencies
-
-```bash
-cd frontend
+# 2. Install frontend dependencies
+cd ../frontend
 pnpm install
 ```
 
-### Step 5: Run it
+---
 
-**Option A - All-in-one (from repo root):**
+### Step 4: Run the Application
+
+#### Option A: One-Click Startup (Recommended)
+
+From the project root:
 
 ```bash
-# macOS/Linux
-chmod +x start_app.sh
-./start_app.sh
-
 # Windows (PowerShell)
 .\start_app.ps1
+
+# macOS / Linux
+chmod +x start_app.sh
+./start_app.sh
 ```
 
-**Option B - Separate terminals:**
+#### Option B: Manual Multi-Terminal Startup
 
 ```bash
-# Terminal 1 — LiveKit Server
-livekit-server --dev
-
-# Terminal 2 — Backend agent
+# Terminal 1 — Backend Agent
 cd backend && uv run python src/agent.py dev
 
-# Terminal 3 — Frontend
+# Terminal 2 — Frontend UI
 cd frontend && pnpm dev
 
-# Terminal 4 — Escalation Dashboard (Optional)
+# Terminal 3 — Teacher Escalation Dashboard (Optional)
 cd backend && uv run python src/escalation_dashboard.py
 
-# Terminal 5 — Call Analytics Dashboard (Optional)
+# Terminal 4 — Call Analytics Dashboard (Optional)
 cd backend && uv run python src/call_analytics_dashboard.py
+
+# Terminal 5 — Local LiveKit Server (If not using LiveKit Cloud)
+livekit-server --dev
 ```
 
-Then open **http://localhost:3000** in your browser.
-
-You should now see the voice agent UI. Click **Start talking**, allow microphone access, and speak — the agent will respond with Murf Falcon TTS. Ensure your backend and (if using Option B) LiveKit server are running.
+Once running:
+- **Voice Agent UI**: Open [http://localhost:3000](http://localhost:3000)
+- **Teacher Escalation Portal**: Open [http://localhost:5050](http://localhost:5050)
+- **Call Analytics Dashboard**: Open [http://localhost:5051](http://localhost:5051)
 
 ---
 
-## Deploy
+## 🎯 Recommended Voice Test Prompts
 
-Want to deploy this beyond localhost? You'll need to deploy **two services**: the backend agent and the frontend. Both must use the same LiveKit project.
+Test all features by speaking to the voice agent:
 
-> This is a two-service app — the backend agent and the frontend UI deploy separately. You'll need both running and connected to the same LiveKit project.
-
-### Backend (Python agent) — Deploy to Railway
-
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/tIVCF1?referralCode=cNjn2P&utm_medium=integration&utm_source=template&utm_campaign=generic)
-
-Set these environment variables in Railway:
-
-- `MURF_API_KEY`
-- `DEEPGRAM_API_KEY`
-- `GOOGLE_API_KEY` or `OPENAI_API_KEY`
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
-
-The backend runs as a long-lived Python process that connects to LiveKit as an agent. Railway handles this well.
-
-### Frontend (Next.js) — Deploy to Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/murf-ai/murf-livekit-starter&root-directory=frontend&env=LIVEKIT_URL,LIVEKIT_API_KEY,LIVEKIT_API_SECRET&project-name=murf-voice-agent&repository-name=murf-voice-agent)
-
-Set these environment variables in Vercel:
-
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
-- `AGENT_NAME` (optional — for explicit agent dispatch)
-
-The frontend is a standard Next.js app. Point it at the same LiveKit instance your backend agent is connected to.
-
-### Connecting them
-
-The frontend and backend don't call each other directly — they both connect to **LiveKit**, which handles the real-time audio transport.
-
-1. Use the **same** `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` on both Railway and Vercel
-2. Set `AGENT_NAME=my-agent` on Vercel — this matches the `agent_name="my-agent"` registered in `backend/src/agent.py`
-3. Verify: Railway logs should show the agent connected to LiveKit. Open your Vercel URL, click **Start talking** — the agent should respond
-
-If the agent doesn't connect, double-check that both services point to the same LiveKit project and that the backend is running (check Railway logs).
+| Category | What to Say | Expected Agent Action |
+| :--- | :--- | :--- |
+| **Fetch Exercise** | *"Can you give me a Grade 1 math exercise?"*<br>*"Give me a beginner reading practice question."* | Calls `fetch_next_exercise` and reads out the dynamic question. |
+| **Score Spoken Answer** | *"My answer is 'hat'. How did I do?"*<br>*"The sun shines bright in the sky. Score my reading."* | Calls `score_spoken_answer`, checks phonetic accuracy, and announces score. |
+| **Maths Handoff** | *"What is 22 times 96?"*<br>*"Can you help me solve 125 plus 340?"* | Nova announces handoff to **Zenith**, who introduces himself and solves the problem step-by-step. |
+| **Multilingual** | *"Namaste Nova! Kya hum Hindi mein baat kar sakte hain?"* | Nova immediately switches to conversational Hindi/Hinglish. |
+| **Human Escalation** | *"I'm getting really frustrated and I want to quit."*<br>*"Can I talk to a real teacher?"* | Nova empathizes, asks permission to log an escalation note, and triggers `create_escalation`. |
+| **Data Privacy Consent** | End of conversation / *"Wrap up our practice."* | Nova asks: *"I'd like to remember your name {Name} and that we spoke about {Topic}. Is it okay if I save this?"* before calling `save_caller_facts`. |
+| **Outbound SIP Opt-Out** | *"Cancel my daily calls."* / *"Unsubscribe."* | Nova calls `cancel_daily_calls`, confirms cancellation, and hangs up gracefully. |
 
 ---
 
-## Change the Use Case
+## 📱 Daily Outbound SIP Practice Calls (Linphone)
 
-The default system prompt makes this a **customer support agent**. You can change the agent’s behavior by editing the prompt.
+The project includes an outbound SIP dialer that calls learners for scheduled practice sessions.
 
-**Where the prompt lives:** `backend/src/agent.py`- the `SYSTEM_PROMPT` constant (near the top of the file, after the imports). Change that string to change what your voice agent does.
+### Step-by-Step Setup
 
-### Example prompts (copy-paste)
-
-**Customer Support (default):**
-
-```
-You are a friendly and efficient customer support agent for a tech company. Help users with account issues, billing questions, and product troubleshooting. Be concise, empathetic, and solution-oriented. If you don't know something, say so honestly and offer to escalate.
-```
-
-**Language Tutor:**
-
-```
-You are a patient and encouraging language tutor helping the user practice conversational Spanish. Speak primarily in Spanish but switch to English to explain grammar or vocabulary when needed. Correct mistakes gently and suggest better phrasing. Keep conversations natural and fun.
-```
-
-**AI Receptionist:**
-
-```
-You are a professional receptionist for a medical clinic. Help callers schedule appointments, answer questions about office hours and services, and take messages for doctors. Be warm but efficient. Ask for the caller's name and reason for calling upfront.
-```
-
-See the Configuration section below for voice, STT, and LLM options.
+1. **Get a Free Linphone Account**:
+   - Register at [subscribe.linphone.org](https://subscribe.linphone.org/).
+   - Install the Linphone app on desktop or mobile and log in (`sip:<username>@sip.linphone.org`).
+2. **Create LiveKit Outbound SIP Trunk**:
+   - In [LiveKit Cloud](https://cloud.livekit.io) &rarr; **SIP** tab &rarr; **Create Outbound Trunk**.
+   - Set **Address/Hostname** to `sip.linphone.org` and **Numbers** to `+0000000000`.
+   - Copy the generated Trunk ID (`ST_xxxxxxxxxxxx`).
+3. **Configure `.env.local`**:
+   ```env
+   SIP_OUTBOUND_TRUNK_ID=ST_xxxxxxxxxxxx
+   LINPHONE_SIP_URI=sip:<username>@sip.linphone.org
+   ```
+4. **Trigger Outbound Call**:
+   ```bash
+   cd backend
+   uv run python src/make_outbound_call.py
+   ```
+   Accept the incoming call on Linphone to start your practice session!
 
 ---
 
-## Configuration
+## ⚙️ Configuration & Customization
 
-### Murf voice
+All core pipeline settings can be modified in [`backend/src/agent.py`](backend/src/agent.py) and [`backend/src/prompt.py`](backend/src/prompt.py).
 
-Edit the `tts=murf.TTS(...)` call in `backend/src/agent.py`. Set the `voice` argument to any Murf voice ID. Examples:
+### Murf Falcon Voice Selection
 
-- `Anisha` — Indian English (female, default in this starter)
-- `Pooja` — Indian English (female)
-- `Samar` — Indian English (male)
-- `Amara` — US English (female)
-- `Gordon` — US English (male)
-- `Hazel` — UK English (female)
-- `Bertie` — UK English (male)
+Change the `voice` parameter in `tts=murf.TTS(...)`:
 
-Browse all voices: [Murf Voice Library](https://murf.ai/api/docs/voices-styles/voice-library).
+```python
+tts = murf.TTS(
+    voice="Anisha",  # Indian English (Female, Default)
+    # voice="Pooja",  # Indian English (Female)
+    # voice="Samar",  # Indian English (Male)
+    # voice="Amara",  # US English (Female)
+    # voice="Gordon", # US English (Male)
+    # voice="Hazel",  # UK English (Female)
+    # voice="Bertie", # UK English (Male)
+)
+```
+Explore the full list at the [Murf Voice Library](https://murf.ai/api/docs/voices-styles/voice-library).
 
-### STT provider
+### LLM & STT Models
 
-STT is configured in `backend/src/agent.py` in the `AgentSession(stt=...)` call. The default is Deepgram (`deepgram.STT(model="nova-3")`). You can swap to another LiveKit-compatible STT plugin if needed.
-
-### LLM (Gemini vs OpenAI)
-
-- **Gemini (default):** Set `GOOGLE_API_KEY` and use `llm=google.LLM(model="gemini-3.5-flash-lite")` in `agent.py`.
-- **OpenAI:** Set `OPENAI_API_KEY`, add the OpenAI plugin, and use the corresponding `llm=openai.LLM(...)` in `agent.py`.
-
-### Audio format
-
-Murf Falcon and LiveKit handle audio format internally. For advanced options, see [Murf API docs](https://murf.ai/api/docs) and [LiveKit docs](https://docs.livekit.io).
+- **LLM**: Default is Google Gemini (`google.LLM(model="gemini-2.5-flash")`). You can swap to `openai.LLM(model="gpt-4o-mini")`.
+- **STT**: Default is Deepgram Nova-3 (`deepgram.STT(model="nova-3")`).
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
-murf-livekit-starter/
-├── backend/                 # Python voice agent (LiveKit Agents + Murf Falcon)
-│   ├── src/
-│   │   └── agent.py         # Agent entrypoint, pipeline (STT/LLM/TTS), system prompt
-│   ├── tests/               # Agent tests
-│   ├── .env.example         # Backend env template
-│   ├── pyproject.toml       # Python deps (uv)
-│   └── railway.toml         # Railway deploy config
-├── frontend/                # Next.js UI for voice sessions
-│   ├── app/
-│   │   ├── page.tsx         # Main page
-│   │   └── api/token/       # LiveKit token endpoint (dev)
-│   ├── components/          # UI (agents-ui, app config, theme)
-│   ├── app-config.ts        # Branding, title, button text, accent
-│   ├── .env.example         # Frontend env template
-│   └── package.json         # Node deps (pnpm)
-├── start_app.sh             # Start LiveKit + backend + frontend (macOS/Linux)
-├── start_app.ps1            # Start LiveKit + backend + frontend (Windows)
-├── README.md                # This file
+voice-agent/
+└── murf-livekit-starter/
+    ├── backend/
+    │   ├── src/
+    │   │   ├── agent.py                    # Multi-agent entrypoint, session pipeline, function tools
+    │   │   ├── prompt.py                   # Nova, Zenith, & Outbound system prompts and instructions
+    │   │   ├── exercises.py                # Live Datamuse API integration & local graded curriculum
+    │   │   ├── database.py                 # SQLite database schema, user profiles, escalations, call logs
+    │   │   ├── escalation_dashboard.py     # Web UI server for teacher escalations (Port 5050)
+    │   │   ├── call_analytics_dashboard.py # Web UI server for call stats & metrics (Port 5051)
+    │   │   └── make_outbound_call.py       # Linphone SIP outbound dialing script
+    │   ├── tests/
+    │   │   ├── test_agent.py               # Unit tests for agent functions & prompts
+    │   │   └── test_exercises.py           # Unit tests for scoring & exercise fetching
+    │   ├── .env.example                    # Backend environment variable template
+    │   ├── pyproject.toml                  # Python dependencies managed with uv
+    │   └── README.md                       # Backend-specific documentation
+    ├── frontend/
+    │   ├── app/
+    │   │   ├── page.tsx                    # Voice Agent main web page
+    │   │   ├── layout.tsx                  # Root layout & theme providers
+    │   │   └── api/token/route.ts          # LiveKit access token generation endpoint
+    │   ├── components/
+    │   │   ├── app/
+    │   │   │   ├── view-controller.tsx     # Session orchestrator & Zenith handoff detection
+    │   │   │   ├── zenith-overlay.tsx      # Specialist takeover visualizer
+    │   │   │   └── welcome-view.tsx        # Pre-connect interface
+    │   │   └── agents-ui/                  # Audio visualizers, transcripts, & controls
+    │   ├── app-config.ts                   # Branding, accent colors, and app strings
+    │   ├── package.json                    # Node.js dependencies
+    │   └── README.md                       # Frontend-specific documentation
+    ├── start_app.ps1                       # Windows one-click startup script
+    ├── start_app.sh                        # macOS/Linux one-click startup script
+    └── README.md                           # Master project documentation
 ```
-
-For deeper documentation on each part, see:
-
-- [Backend Documentation](./backend/README.md) — agent pipeline, voice/LLM/STT configuration, testing, deployment
-- [Frontend Documentation](./frontend/README.md) — UI customization, visualizers, theming, component architecture
 
 ---
 
-## Links
+## 🧪 Testing
 
-- [Murf API Docs](https://murf.ai/api/docs)
-- [Murf Voice Library](https://murf.ai/api/docs/voices-styles/voice-library)
-- [LiveKit Docs](https://docs.livekit.io)
-- [Deepgram Docs](https://developers.deepgram.com)
+Run backend tests using `pytest`:
+
+```bash
+cd backend
+uv run pytest
+```
+
+---
+
+## 🚢 Deployment
+
+### Backend (Python Agent) &rarr; [Railway](https://railway.com/)
+
+1. Push your repository to GitHub.
+2. Create a new service on Railway connected to your repository (set Root Directory to `/backend`).
+3. Set all required environment variables (`MURF_API_KEY`, `DEEPGRAM_API_KEY`, `GOOGLE_API_KEY`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`).
+4. Start command: `uv run python src/agent.py start`.
+
+### Frontend (Next.js) &rarr; [Vercel](https://vercel.com/)
+
+1. Import your repository on Vercel (set Root Directory to `/frontend`).
+2. Set environment variables: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and `AGENT_NAME=my-agent`.
+3. Deploy!
+
+---
+
+## 🔗 Useful Links & Resources
+
+- [Murf AI API Documentation](https://murf.ai/api/docs)
 - [Murf Falcon Benchmarks](https://murf.ai/falcon/benchmarks)
-- [TTS Latency Benchmarker](https://github.com/sahilsgupta/tts-latency-benchmarker) — run your own p50/p95 tests across providers
-- [Murf Discord](https://discord.gg/FbKAy96Sz7)
-- [Murf Startup Incubator](https://murf.ai/api) — 50M free characters for startups
+- [Murf Streaming TTS API Reference](https://murf.ai/api/docs/text-to-speech/streaming)
+- [LiveKit Agents Documentation](https://docs.livekit.io/agents)
+- [Deepgram Speech-to-Text Docs](https://developers.deepgram.com)
+- [Datamuse Public Educational API](https://www.datamuse.com/api/)
+- [Murf Discord Community](https://discord.gg/FbKAy96Sz7)
 
 ---
 
-## Learning & Literacy Track: Domain Data & Tools
+## 📄 License
 
-### Theme & Objective
-- **Track**: Learning & Literacy
-- **Objective**: Fetch next level-graded exercise dynamically and score a spoken answer using real domain data.
-
-### Domain Data Sources
-1. **Live External API**: [Datamuse Public Educational API](https://api.datamuse.com/words) — Fetches dynamic vocabulary, phonics, and reading definitions with a 3.5s timeout.
-2. **Local Graded Dataset**: Curated Literacy & Numeracy exercise repository indexed by grade levels (`beginner`, `grade_1`, `grade_2`, `grade_3`, `intermediate`, `advanced`) and topics (`reading`, `phonics`, `vocabulary`, `math_literacy`).
-
-### Function Calls Implemented
-1. `fetch_next_exercise(level, topic)`
-   - **Description**: Fetches the next exercise for the specified level and topic from the live educational API or local dataset.
-   - **Data Timestamp**: Embeds ISO UTC timestamp (e.g. `2026-08-10 18:52 UTC`) stored in database records and tool payload for auditing, kept silent during voice output.
-   - **Out-Loud Failure Handling**: If the API times out or network connection fails, catches the error and returns an explicit instruction so the agent announces out loud: *"I couldn't reach the online exercise server right now due to a network connection delay, so I have loaded a backup practice question from our offline curriculum."*
-
-2. `score_spoken_answer(spoken_answer, exercise_id, expected_answer)`
-   - **Description**: Evaluates character distance (Levenshtein), word overlap ratio, and phonetic similarity between the user's spoken answer and expected text.
-   - **Data Timestamp**: Includes evaluation timestamp (`scored_at_timestamp`) stored in database records.
-
-### Recommended Questions to Ask the Voice Agent
-
-To test these function calls in action, ask the voice agent:
-
-1. **To fetch an exercise:**
-   - *"Can you give me a Grade 1 math exercise?"*
-   - *"Fetch a beginner reading practice question for me."*
-   - *"Give me a Grade 2 vocabulary question."*
-
-2. **To submit & score a spoken answer:**
-   - *"My answer is 'hat'. How did I do?"*
-   - *"I read it as: 'The sun shines bright in the sky'. Score my reading."*
-   - *"My answer for the math question is 5."*
-
-3. **To test caller context & end-of-chat data consent:**
-   - *"My name is Ramesh and we practiced beginner phonics."*
-   - Agent asks at chat ending: *"I'd like to remember your name Ramesh and that we spoke about beginner phonics. Is it okay if I save this?"*
-   - User responds: *"Yes, please save it."* (Triggers `save_caller_facts`)
-
-### Escalation Dashboard
-
-To view and manage open student escalation requests:
-1. Run the dashboard server:
-   ```bash
-   cd backend
-   uv run python src/escalation_dashboard.py
-   ```
-2. Open **http://localhost:5050** in your web browser. This interface allows you to view active and resolved escalations, review what the agent already checked, check language preferences, and mark escalations as resolved.
-
-### Call Analytics Dashboard
-
-To view call outcomes and stats (Total Calls, Successful Calls, Failed Calls, and Success Rate):
-1. Run the dashboard server:
-   ```bash
-   cd backend
-   uv run python src/call_analytics_dashboard.py
-   ```
-2. Open **http://localhost:5051** in your web browser. This interface shows call volumes, how many exercises were completed/passed, and includes a live 5-second auto-refresh. No sensitive caller details or transcripts are displayed.
-
----
-
-## Daily Literacy Practice — Outbound Call Feature (Linphone)
-
-This starter project includes an outbound SIP-telephony dialing feature to call users for their scheduled daily literacy practice using **Linphone** (a free, open-source SIP client).
-
-### Outbound Call Setup & Run
-
-#### 1. Create a Free Linphone Account
-- Sign up for a free SIP account at [subscribe.linphone.org](https://subscribe.linphone.org/).
-- Install the Linphone app (desktop or mobile) and sign in. Your SIP address will be: `sip:<username>@sip.linphone.org`.
-- Keep the app running and online.
-
-#### 2. Configure LiveKit Outbound Trunk
-- In the [LiveKit Cloud Dashboard](https://cloud.livekit.io) -> select your project -> **SIP** tab.
-- Click **Create Outbound Trunk**:
-  - **Name**: `linphone-outbound`
-  - **Address/Hostname**: `sip.linphone.org`
-  - **Numbers**: `+0000000000` (placeholder caller ID)
-- Save the trunk and copy the generated **Trunk ID** (e.g. `ST_xxxxxxxxxxxx`).
-
-#### 3. Update Environment variables
-Open `backend/.env.local` and add:
-```env
-SIP_OUTBOUND_TRUNK_ID=ST_xxxxxxxxxxxx             # Your LiveKit Outbound Trunk ID
-LINPHONE_SIP_URI=sip:<username>@sip.linphone.org  # Your Linphone destination URI
-```
-
-#### 4. Run the Agent and Trigger the Call
-- **Start the Agent (Terminal 1)**:
-  ```bash
-  cd backend
-  uv run python src/agent.py dev
-  ```
-- **Trigger the Outbound Call (Terminal 2)**:
-  ```bash
-  cd backend
-  uv run python src/make_outbound_call.py
-  ```
-
-Your Linphone client will ring. Accept the call to begin your practice!
-
-### Supported Call Flows & Prompts
-
-1. **Required Outbound Greeting**:
-   Immediately upon pickup, the agent speaks:
-   > *"Hi, this is your Daily Literacy Coach calling for your scheduled reading practice. If you want to stop these calls at any time, just say 'cancel my calls'."*
-   
-    If you have a returning profile in the database, the agent dynamically appends personalization based on your last lesson (e.g. *"Namaste student, last time we spoke about beginner English. Did the practice help?"*).
-
-2. **Cancel Calls / Opt-Out**:
-   If you say *"cancel my calls"*, *"unsubscribe"*, or *"stop calling me"*, the agent calls the `cancel_daily_calls` tool to record your opt-out, states an confirmation message, and gracefully disconnects the call.
-
-3. **Wrap-up Consent**:
-   Immediately after the first exercise is completed and scored, the agent wraps up the call and asks:
-   > *"I'd like to remember your name {Name} and that we spoke about {Topic}. Is it okay if I save this?"*
-   
-   Responding *"Yes"* saves your details to `voice_agent.db` for the next call's personalization.
-
----
-
-## License
-
-MIT
-
-
+This project is licensed under the [MIT License](LICENSE).

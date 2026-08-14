@@ -25,7 +25,7 @@ load_dotenv(".env.local")
 
 import database  # noqa: E402
 import exercises  # noqa: E402
-from prompt import OUTBOUND_SYSTEM_PROMPT, SYSTEM_PROMPT  # noqa: E402
+from prompt import MATH_SPECIALIST_PROMPT, OUTBOUND_SYSTEM_PROMPT, SYSTEM_PROMPT  # noqa: E402
 
 logger = logging.getLogger("agent")
 
@@ -65,7 +65,9 @@ class Assistant(Agent):
             level: The learner's level. Options: 'beginner', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'intermediate'. Defaults to 'beginner'.
             topic: Optional subject filter. Options: 'english', 'math', 'vocabulary', 'reading'. Defaults to None (any topic).
         """
-        logger.info(f"Tool fetch_next_exercise called with level={level}, topic={topic}")
+        logger.info(
+            f"Tool fetch_next_exercise called with level={level}, topic={topic}"
+        )
         self.exercises_attempted += 1
         try:
             res = await exercises.fetch_next_exercise_data(
@@ -206,6 +208,7 @@ class Assistant(Agent):
             if hasattr(session, "room_io") and session.room_io:
                 room = session.room_io.room
                 if room and room.remote_participants:
+
                     async def _disconnect_after_goodbye():
                         await asyncio.sleep(6)
                         for p in list(room.remote_participants.values()):
@@ -216,6 +219,7 @@ class Assistant(Agent):
                                     )
                                 except Exception as ex:
                                     logger.warning(f"Could not send SIP hangup: {ex}")
+
                     asyncio.create_task(_disconnect_after_goodbye())
 
         return (
@@ -248,7 +252,12 @@ class Assistant(Agent):
             action_taken: Action or solution discussed (e.g. 'spraying pesticide', 'daily reading')
         """
         uid = user_id or self.current_caller_id
-        if not uid and context and hasattr(context, "session") and context.session.room_io:
+        if (
+            not uid
+            and context
+            and hasattr(context, "session")
+            and context.session.room_io
+        ):
             try:
                 room = context.session.room_io.room
                 if room and room.remote_participants:
@@ -348,6 +357,221 @@ class Assistant(Agent):
                 "temporary error. Please try calling back and asking for a teacher again, "
                 "and we will make sure someone helps you.'"
             )
+
+    @function_tool
+    async def handoff_to_math_specialist(
+        self,
+        context: RunContext,
+        user_request: str,
+    ) -> Agent:
+        """Hand off the conversation to Zenith, the Maths Practice Specialist.
+        Use this tool AUTOMATICALLY when the user's request is clearly focused on in-depth
+        mathematics practice such as:
+        - multiplication tables, times tables, division drills
+        - fractions, decimals, percentages
+        - multi-step word problems or algebra
+        - geometry or number patterns
+        - any session dedicated to maths exercises
+        Do NOT use for simple one-off math questions (e.g. 'what is 2+1?') — handle those yourself.
+        Do NOT use for general literacy, reading, vocabulary, or English exercises.
+        ALWAYS say: 'Let me connect you to Zenith, our Maths Practice Specialist — they'll take great care of you!'
+        BEFORE calling this tool.
+
+        Args:
+            user_request: A brief summary of what the user wants to practice in maths.
+        """
+        logger.info(
+            f"Handing off to MathSpecialist (Zenith). user_request={user_request!r}, "
+            f"caller_id={self.current_caller_id}"
+        )
+        specialist = MathSpecialist(
+            caller_id=self.current_caller_id,
+            user_request=user_request,
+        )
+        return specialist
+
+
+class MathSpecialist(Agent):
+    """Zenith — a focused Maths Practice Specialist agent.
+
+    This agent only handles mathematics topics. It is activated via a handoff
+    from the main Assistant (Nova) when the user asks for dedicated maths practice.
+    """
+
+    def __init__(self, caller_id: Optional[str] = None, user_request: str = "") -> None:
+        self.user_request = user_request
+        self.current_caller_id = caller_id
+        self.exercises_attempted = 0
+        self.exercises_passed = 0
+        context_suffix = ""
+        if user_request:
+            context_suffix = (
+                f"\n\nUSER CONTEXT (from Nova handoff):\n"
+                f"The user asked: '{user_request}'.\n"
+                f"You MUST solve and explain this specific question step by step and give the final numerical answer clearly. "
+                f"Do NOT ask the user any quiz or practice questions afterwards."
+            )
+        super().__init__(instructions=MATH_SPECIALIST_PROMPT + context_suffix)
+
+    async def on_enter(self) -> None:
+        """Automatically called when Zenith takes over after handoff."""
+        logger.info(f"[Zenith] Entered session after handoff. user_request={self.user_request!r}")
+        try:
+            await self.session.room.local_participant.set_attributes({
+                "active_agent": "Zenith",
+                "agent_name": "Zenith",
+            })
+        except Exception as e:
+            logger.warning(f"[Zenith] Could not set attributes: {e}")
+
+        # Trigger Zenith's immediate greeting and solution to the handoff question
+        intro_prompt = (
+            f"Introduce yourself warmly as Zenith, the Maths Specialist, and clearly solve and explain the answer to the user's question: '{self.user_request}'. Provide the clear final answer and do not ask any quiz questions afterwards."
+            if self.user_request
+            else "Introduce yourself as Zenith, the Maths Specialist, and ask what maths question you can solve for them today."
+        )
+        self.session.generate_reply(user_input=intro_prompt)
+
+    @function_tool
+    async def fetch_next_exercise(
+        self,
+        context: RunContext,
+        level: Optional[str] = "beginner",
+        topic: Optional[str] = "math",
+    ) -> str:
+        """Fetch the next mathematics exercise.
+        Always call this with topic='math'. Call at session start and after every scored answer.
+
+        Args:
+            level: The learner's level: 'beginner', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'intermediate'.
+            topic: Always 'math' for this specialist.
+        """
+        logger.info(
+            f"[Zenith] fetch_next_exercise called: level={level}, topic={topic}"
+        )
+        self.exercises_attempted += 1
+        try:
+            res = await exercises.fetch_next_exercise_data(
+                level=level or "beginner", topic="math"
+            )
+            logger.info(f"[Zenith] fetch_next_exercise_data result: {res}")
+            if res.get("status") == "error_no_exercises":
+                return (
+                    f"System Notice: {res.get('notice', 'No math exercises found.')}\n"
+                )
+            output = (
+                f"Exercise ID: {res['exercise_id']}\n"
+                f"Level: {res['level']}\n"
+                f"Type: {res['type']}\n"
+                f"Question: {res['question']}\n"
+                f"Answer: {res['answer']}\n"
+                f"Data Source: {res['data_source']}\n"
+                f"Data Timestamp: {res['data_timestamp']}\n"
+            )
+            if "notice" in res:
+                output += f"System Notice: {res['notice']}\n"
+            return output
+        except Exception as e:
+            logger.error(f"[Zenith] Error fetching exercise: {e}")
+            return (
+                "FAILURE_NOTICE: Could not fetch a maths exercise right now. "
+                "Please say out loud: 'I couldn't load a question right now — let me give you a quick one from memory: What is 7 times 8?'"
+            )
+
+    @function_tool
+    async def score_spoken_answer(
+        self,
+        context: RunContext,
+        spoken_answer: str,
+        exercise_id: Optional[str] = None,
+        expected_answer: Optional[str] = None,
+    ) -> str:
+        """Score the user's spoken answer for a maths exercise.
+
+        Args:
+            spoken_answer: The user's exact spoken words or transcribed answer.
+            exercise_id: The unique ID of the exercise (e.g. 'EX_BEG_107').
+            expected_answer: The expected correct answer, if available.
+        """
+        logger.info(
+            f"[Zenith] score_spoken_answer called: exercise_id={exercise_id}, "
+            f"spoken_answer='{spoken_answer}'"
+        )
+        try:
+            res = exercises.score_spoken_answer_data(
+                exercise_id=exercise_id or "",
+                spoken_answer=spoken_answer,
+                expected_answer=expected_answer,
+            )
+            if res.get("passed"):
+                self.exercises_passed += 1
+            return (
+                f"Evaluation Result for Exercise {res['exercise_id']}:\n"
+                f"Spoken Answer: '{res['spoken_answer']}'\n"
+                f"Expected Answer: '{res['expected_answer']}'\n"
+                f"Score: {res['score_percentage']}%\n"
+                f"Passed: {res['passed']}\n"
+                f"Feedback: {res['feedback']}\n"
+                f"Evaluation Timestamp: {res['scored_at_timestamp']}\n"
+            )
+        except Exception as e:
+            logger.error(f"[Zenith] Error scoring answer: {e}")
+            return (
+                "FAILURE_NOTICE: Could not evaluate the answer automatically. "
+                "Say: 'I had a small technical hiccup evaluating that — but keep going, you're doing great!'"
+            )
+
+    @function_tool
+    async def save_caller_facts(
+        self,
+        context: RunContext,
+        name: str,
+        language_preference: Optional[str] = "English",
+        user_id: Optional[str] = None,
+        current_level: Optional[str] = None,
+        topics_covered: Optional[str] = None,
+        mistakes_made: Optional[str] = None,
+        action_taken: Optional[str] = None,
+    ) -> str:
+        """Save the caller's maths session facts. Only call AFTER verbal consent.
+
+        Args:
+            name: The caller's name.
+            language_preference: Language preference (e.g. 'English', 'Hindi').
+            user_id: Leave empty — filled automatically.
+            current_level: Their maths level (e.g. 'Grade 2', 'Intermediate').
+            topics_covered: Maths topics practiced (e.g. 'multiplication tables, fractions').
+            mistakes_made: Common errors noted during session.
+            action_taken: What was worked on (e.g. 'times tables drilling').
+        """
+        uid = user_id or self.current_caller_id
+        save_name = name or "User"
+        save_lang = language_preference or "English"
+        if not uid:
+            return "Error: could not identify caller. Please try again."
+        facts: dict = {}
+        if current_level:
+            facts["current_level"] = current_level
+        if topics_covered:
+            facts["topics_covered"] = topics_covered
+        if mistakes_made:
+            facts["mistakes_made"] = mistakes_made
+        if action_taken:
+            facts["action_taken"] = action_taken
+        logger.info(
+            f"[Zenith] Saving caller: name={save_name}, uid={uid}, facts={facts}"
+        )
+        try:
+            database.save_caller(
+                user_id=uid,
+                name=save_name,
+                language_preference=save_lang,
+                facts=facts,
+            )
+            return f"Successfully saved maths session for {save_name} (ID: {uid}). Facts: {facts}"
+        except Exception as e:
+            logger.error(f"[Zenith] Error saving caller facts: {e}")
+            return f"Error saving session facts: {e!s}"
 
 
 server = AgentServer()
@@ -547,7 +771,13 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # ── Caller identification & greeting ──────────────────────────────────
+    try:
+        await ctx.room.local_participant.set_attributes({
+            "active_agent": "Nova",
+            "agent_name": "Nova",
+        })
+    except Exception as e:
+        logger.warning(f"Could not set initial participant attributes: {e}")
     caller_name = "user"
     caller_id = None
     caller_record = None
@@ -562,10 +792,12 @@ async def my_agent(ctx: JobContext):
         caller_record = database.lookup_caller(caller_id)
         if not caller_record and caller_name and caller_name != "user":
             caller_record = database.lookup_caller_by_name(caller_name)
-        
+
         # Outbound SIP fallback for testing/demo
         if not caller_record and is_sip_call:
-            logger.info("Outbound SIP call: No direct record match. Falling back to most recent caller.")
+            logger.info(
+                "Outbound SIP call: No direct record match. Falling back to most recent caller."
+            )
             caller_record = database.lookup_most_recent_caller()
     else:
         logger.warning("No remote participant detected in the room.")
@@ -587,7 +819,6 @@ async def my_agent(ctx: JobContext):
         call_type=call_type,
     )
 
-
     # ── Branch: Outbound SIP call vs. Web/inbound call ────────────────────
     if is_sip_call:
         # ━━━━━━━━━━━ OUTBOUND CALL PATH ━━━━━━━━━━━
@@ -600,14 +831,26 @@ async def my_agent(ctx: JobContext):
             db_name = caller_record["name"]
             facts = caller_record["facts"]
             level = facts.get("current_level", "Unknown")
-            topics = facts.get("topics_covered") or facts.get("topic") or facts.get("topics") or "general practice"
-            raw_action = facts.get("action_taken") or facts.get("action") or facts.get("mistakes_made") or "practice"
+            topics = (
+                facts.get("topics_covered")
+                or facts.get("topic")
+                or facts.get("topics")
+                or "general practice"
+            )
+            raw_action = (
+                facts.get("action_taken")
+                or facts.get("action")
+                or facts.get("mistakes_made")
+                or "practice"
+            )
             pref_lang = caller_record.get("language_preference", "English")
 
             if raw_action and raw_action != "None" and raw_action != "spraying":
                 action_phrase = (
                     raw_action
-                    if raw_action.lower().startswith(("the ", "your ", "that ", "a ", "an "))
+                    if raw_action.lower().startswith(
+                        ("the ", "your ", "that ", "a ", "an ")
+                    )
                     else f"the {raw_action}"
                 )
             else:
@@ -655,8 +898,18 @@ After the user responds, ask for their name and start a beginner-level exercise.
             # Returning caller
             db_name = caller_record["name"]
             facts = caller_record["facts"]
-            topics = facts.get("topics_covered") or facts.get("topic") or facts.get("topics") or "your topic"
-            raw_action = facts.get("action_taken") or facts.get("action") or facts.get("mistakes_made") or "spraying"
+            topics = (
+                facts.get("topics_covered")
+                or facts.get("topic")
+                or facts.get("topics")
+                or "your topic"
+            )
+            raw_action = (
+                facts.get("action_taken")
+                or facts.get("action")
+                or facts.get("mistakes_made")
+                or "spraying"
+            )
             level = facts.get("current_level", "Unknown")
             pref_lang = caller_record.get("language_preference", "English")
             mistakes = facts.get("mistakes_made", "None")
@@ -666,7 +919,9 @@ After the user responds, ask for their name and start a beginner-level exercise.
             if raw_action and raw_action != "None" and raw_action != "spraying":
                 action_phrase = (
                     raw_action
-                    if raw_action.lower().startswith(("the ", "your ", "that ", "a ", "an "))
+                    if raw_action.lower().startswith(
+                        ("the ", "your ", "that ", "a ", "an ")
+                    )
                     else f"the {raw_action}"
                 )
             else:

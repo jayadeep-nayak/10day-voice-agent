@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
-import { useAgent, useSessionContext } from '@livekit/components-react';
+import { RoomEvent } from 'livekit-client';
+import { useAgent, useSessionContext, useSessionMessages } from '@livekit/components-react';
 import type { AppConfig } from '@/app-config';
 import { AgentSessionView_01 } from '@/components/agents-ui/blocks/agent-session-view-01';
 import { WelcomeView } from '@/components/app/welcome-view';
+import { ZenithOverlay } from '@/components/app/zenith-overlay';
 import { Button } from '@/components/ui/button';
 
 const MotionWelcomeView = motion.create(WelcomeView);
@@ -37,8 +39,47 @@ interface ViewControllerProps {
 export function ViewController({ appConfig }: ViewControllerProps) {
   const session = useSessionContext();
   const { isConnected, start, end, connectionState } = session;
-  const { state: agentState } = useAgent();
+  const { messages } = useSessionMessages(session);
+  const agent = useAgent();
+  const agentState = agent.state;
+  const agentParticipant = agent.internal.agentParticipant;
   const { resolvedTheme } = useTheme();
+
+  // Detect if Zenith (maths specialist) is the active agent with reactive events & messages
+  const [isZenithActive, setIsZenithActive] = useState(false);
+
+  useEffect(() => {
+    const checkZenithState = () => {
+      const p = agentParticipant;
+      const attrs = (p?.attributes as Record<string, string>) ?? {};
+      const idMatches =
+        p?.identity?.toLowerCase().includes('zenith') ||
+        p?.name?.toLowerCase().includes('zenith');
+      const attrMatches =
+        attrs.active_agent?.toLowerCase() === 'zenith' ||
+        attrs.agent_name?.toLowerCase() === 'zenith';
+
+      // Also check recent transcripts for handoff transition
+      const hasHandoff = messages.some((m) => {
+        const text = m.message?.toLowerCase() ?? '';
+        return text.includes('zenith') || text.includes('maths practice specialist');
+      });
+
+      setIsZenithActive(Boolean(idMatches || attrMatches || hasHandoff));
+    };
+
+    checkZenithState();
+
+    const room = session.room;
+    if (!room) return;
+
+    room.on(RoomEvent.ParticipantAttributesChanged, checkZenithState);
+    room.on(RoomEvent.ParticipantMetadataChanged, checkZenithState);
+    return () => {
+      room.off(RoomEvent.ParticipantAttributesChanged, checkZenithState);
+      room.off(RoomEvent.ParticipantMetadataChanged, checkZenithState);
+    };
+  }, [session.room, agentParticipant, messages]);
 
   const [isStarting, setIsStarting] = useState(false);
   const [micError, setMicError] = useState(false);
@@ -232,7 +273,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
             {/* End Call Icon */}
             <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/10 border border-blue-500/20 shadow-xl animate-subtle-float">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-blue-400">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
 
@@ -270,7 +311,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
           />
         )}
 
-        {/* ── STATES 3 & 4: Active Session (Listening to you / Nova is speaking) ── */}
+        {/* ── STATES 3 & 4: Active Session (Nova UI — always rendered when connected) ── */}
         {isConnected && (
           <MotionSessionView
             key="session-view"
@@ -297,6 +338,15 @@ export function ViewController({ appConfig }: ViewControllerProps) {
             audioVisualizerRadialRadius={appConfig.audioVisualizerRadialRadius}
             audioVisualizerWaveLineWidth={appConfig.audioVisualizerWaveLineWidth}
             className="fixed inset-0"
+            onDisconnect={handleEnd}
+          />
+        )}
+
+        {/* ── Zenith Overlay — automatically appears when math specialist is active ── */}
+        {isConnected && isZenithActive && (
+          <ZenithOverlay
+            key="zenith-overlay"
+            supportsChatInput={appConfig.supportsChatInput}
             onDisconnect={handleEnd}
           />
         )}

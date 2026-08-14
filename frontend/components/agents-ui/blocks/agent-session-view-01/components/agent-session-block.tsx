@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Track } from 'livekit-client';
+import { RoomEvent, Track } from 'livekit-client';
 import { AnimatePresence, type MotionProps, motion } from 'motion/react';
 import {
   useAgent,
@@ -188,7 +188,8 @@ export function AgentSessionView_01({
   const { messages } = useSessionMessages(session);
   const [chatOpen, setChatOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { state: agentState } = useAgent();
+  const agent = useAgent();
+  const agentState = agent.state;
   const { localParticipant } = useLocalParticipant();
 
   // Call duration counter state
@@ -228,6 +229,38 @@ export function AgentSessionView_01({
     }
   }, [messages]);
 
+  const [activeAgentName, setActiveAgentName] = useState<'Nova' | 'Zenith'>('Nova');
+
+  useEffect(() => {
+    const checkActiveAgent = () => {
+      const p = agent.internal.agentParticipant;
+      const attrs = (p?.attributes as Record<string, string>) ?? {};
+      const isZenith =
+        attrs.active_agent?.toLowerCase() === 'zenith' ||
+        attrs.agent_name?.toLowerCase() === 'zenith' ||
+        p?.identity?.toLowerCase().includes('zenith') ||
+        p?.name?.toLowerCase().includes('zenith') ||
+        messages.some((m) => {
+          const text = m.message?.toLowerCase() ?? '';
+          return text.includes('zenith') || text.includes('maths practice specialist');
+        });
+
+      setActiveAgentName(isZenith ? 'Zenith' : 'Nova');
+    };
+
+    checkActiveAgent();
+
+    const room = session.room;
+    if (!room) return;
+
+    room.on(RoomEvent.ParticipantAttributesChanged, checkActiveAgent);
+    room.on(RoomEvent.ParticipantMetadataChanged, checkActiveAgent);
+    return () => {
+      room.off(RoomEvent.ParticipantAttributesChanged, checkActiveAgent);
+      room.off(RoomEvent.ParticipantMetadataChanged, checkActiveAgent);
+    };
+  }, [session.room, agent, messages]);
+
   // Voice Interaction State Map with interactive glowing badge styles
   const getVoiceStateInfo = () => {
     if (isMicMuted) {
@@ -246,7 +279,7 @@ export function AgentSessionView_01({
 
     if (agentState === 'initializing' || agentState === 'connecting') {
       return {
-        status: 'Connecting',
+        status: `${activeAgentName} is joining`,
         subtitle: 'The agent is joining the call; please wait...',
         badgeColor: 'glow-badge-connecting text-cyan-400',
         dot: (
@@ -256,9 +289,9 @@ export function AgentSessionView_01({
     }
     if (agentState === 'speaking') {
       return {
-        status: 'Nova is speaking',
-        subtitle: 'Listen and follow along...',
-        badgeColor: 'glow-badge-speaking text-blue-400',
+        status: `${activeAgentName} is speaking`,
+        subtitle: activeAgentName === 'Zenith' ? 'Listen carefully and get ready to answer...' : 'Listen and follow along...',
+        badgeColor: activeAgentName === 'Zenith' ? 'border-amber-500/50 bg-amber-500/15 text-amber-300 shadow-lg shadow-amber-500/25' : 'glow-badge-speaking text-blue-400',
         dot: (
           <span className="flex items-center gap-0.5">
             <span className="h-3 w-0.5 rounded-full bg-current animate-wave-bar-1" />
@@ -272,18 +305,18 @@ export function AgentSessionView_01({
     }
     if (agentState === 'thinking') {
       return {
-        status: 'Nova is thinking',
-        subtitle: 'Processing speech...',
-        badgeColor: 'border-purple-500/40 bg-purple-500/15 text-purple-400 shadow-lg shadow-purple-500/20',
+        status: `${activeAgentName} is thinking`,
+        subtitle: activeAgentName === 'Zenith' ? 'Calculating the step-by-step solution...' : 'Processing speech...',
+        badgeColor: activeAgentName === 'Zenith' ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 shadow-lg shadow-amber-500/20' : 'border-purple-500/40 bg-purple-500/15 text-purple-400 shadow-lg shadow-purple-500/20',
         dot: (
-          <span className="h-2.5 w-2.5 rounded-full border-2 border-purple-400 border-t-transparent animate-ln-spin" />
+          <span className="h-2.5 w-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-ln-spin" />
         ),
       };
     }
     // Default or Listening State
     return {
       status: 'Listening to you',
-      subtitle: "Go ahead, I'm listening...",
+      subtitle: activeAgentName === 'Zenith' ? "Go ahead — answer Zenith's question!" : "Go ahead, I'm listening...",
       badgeColor: 'glow-badge-listening text-emerald-400',
       dot: <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-dot-pulse" />,
     };

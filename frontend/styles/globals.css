@@ -476,3 +476,55 @@
   background: linear-gradient(90deg, #38BDF8, #06B6D4);
   transition: width 1s ease-out;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Zenith — Maths Specialist Animations
+   ═══════════════════════════════════════════════════════════ */
+
+/* Zenith expanding energy ring 1 (amber) */
+@keyframes zenith-ring-1 {
+  0%   { transform: scale(0.80); opacity: 0.60; }
+  50%  { transform: scale(1.20); opacity: 0.22; }
+  100% { transform: scale(1.60); opacity: 0; }
+}
+
+/* Zenith expanding energy ring 2 (violet, delayed) */
+@keyframes zenith-ring-2 {
+  0%   { transform: scale(0.90); opacity: 0.50; }
+  50%  { transform: scale(1.30); opacity: 0.15; }
+  100% { transform: scale(1.75); opacity: 0; }
+}
+
+/* Zenith orb glow breathe */
+@keyframes zenith-orb-glow {
+  0%, 100% { transform: scale(1);    opacity: 0.6; }
+  50%       { transform: scale(1.25); opacity: 1;   }
+}
+
+/* Zenith core sphere pulse */
+@keyframes zenith-core-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 50px 15px rgba(245,158,11,0.30),
+      0 0 80px 30px rgba(139,92,246,0.15),
+      inset 0 2px 0 rgba(255,255,255,0.20);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow:
+      0 0 70px 25px rgba(245,158,11,0.45),
+      0 0 110px 45px rgba(139,92,246,0.25),
+      inset 0 2px 0 rgba(255,255,255,0.25);
+  }
+}
+
+/* Floating math symbol particle */
+@keyframes zenith-float {
+  0%   { transform: translateY(0px)   rotate(0deg)   scale(1);    opacity: 0.18; }
+  33%  { transform: translateY(-18px) rotate(8deg)   scale(1.05); opacity: 0.28; }
+  66%  { transform: translateY(8px)   rotate(-5deg)  scale(0.95); opacity: 0.14; }
+  100% { transform: translateY(0px)   rotate(0deg)   scale(1);    opacity: 0.18; }
+}
+
+.animate-zenith-float { animation: zenith-float 8s ease-in-out infinite; }
