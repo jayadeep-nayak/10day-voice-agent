@@ -18,6 +18,7 @@ import {
 interface ZenithOverlayProps {
   onDisconnect?: () => void;
   supportsChatInput?: boolean;
+  messages?: import('@livekit/components-react').ReceivedMessage[];
 }
 
 /** Floating math symbol particle */
@@ -53,9 +54,14 @@ const PARTICLES = MATH_SYMBOLS.map((sym, i) => ({
   animationDuration: `${6 + (i % 4) * 2}s`,
 }));
 
-export function ZenithOverlay({ onDisconnect, supportsChatInput = true }: ZenithOverlayProps) {
+export function ZenithOverlay({
+  onDisconnect,
+  supportsChatInput = true,
+  messages: externalMessages,
+}: ZenithOverlayProps) {
   const session = useSessionContext();
-  const { messages } = useSessionMessages(session);
+  const sessionMessagesHook = useSessionMessages(externalMessages ? undefined : session);
+  const messages = externalMessages ?? sessionMessagesHook.messages;
   const { state: agentState } = useAgent();
   const { localParticipant } = useLocalParticipant();
   const [chatOpen, setChatOpen] = useState(false);

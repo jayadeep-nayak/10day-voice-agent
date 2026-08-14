@@ -157,6 +157,8 @@ export interface AgentSessionView_01Props {
   audioVisualizerRadialRadius?: number;
   /** Stroke width of the wave path when `audioVisualizerType` is `wave`. */
   audioVisualizerWaveLineWidth?: number;
+  /** Messages to display in chat transcript */
+  messages?: import('@livekit/components-react').ReceivedMessage[];
   /** Optional class name merged onto the outer `<section>` container. */
   className?: string;
   /** Callback when the user disconnects the session. */
@@ -180,12 +182,14 @@ export function AgentSessionView_01({
   audioVisualizerRadialRadius,
   audioVisualizerWaveLineWidth,
   onDisconnect,
+  messages: externalMessages,
   ref,
   className,
   ...props
 }: React.ComponentProps<'section'> & AgentSessionView_01Props) {
   const session = useSessionContext();
-  const { messages } = useSessionMessages(session);
+  const sessionMessagesHook = useSessionMessages(externalMessages ? undefined : session);
+  const messages = externalMessages ?? sessionMessagesHook.messages;
   const [chatOpen, setChatOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const agent = useAgent();

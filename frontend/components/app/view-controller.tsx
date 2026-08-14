@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
 import { RoomEvent } from 'livekit-client';
@@ -34,9 +34,15 @@ const VIEW_MOTION_PROPS = {
 
 interface ViewControllerProps {
   appConfig: AppConfig;
+  onRestartSession?: () => void;
+  autoStart?: boolean;
 }
 
-export function ViewController({ appConfig }: ViewControllerProps) {
+export function ViewController({
+  appConfig,
+  onRestartSession,
+  autoStart = false,
+}: ViewControllerProps) {
   const session = useSessionContext();
   const { isConnected, start, end, connectionState } = session;
   const { messages } = useSessionMessages(session);
@@ -125,13 +131,28 @@ export function ViewController({ appConfig }: ViewControllerProps) {
     setIsStarting(false);
   }, [end]);
 
-  // Reset callEnded state when connected
+  const hasAutoStartedRef = useRef(false);
+  const wasConnectedRef = useRef(false);
+
+  // Track connection status & handle callEnded state transition
   useEffect(() => {
     if (isConnected) {
+      wasConnectedRef.current = true;
       setCallEnded(false);
+      setIsStarting(false);
+    } else if (wasConnectedRef.current && !isConnected) {
+      setCallEnded(true);
       setIsStarting(false);
     }
   }, [isConnected]);
+
+  // Auto-start session only once on initial mount if autoStart is true
+  useEffect(() => {
+    if (autoStart && !hasAutoStartedRef.current && !isConnected && !isStarting && !callEnded) {
+      hasAutoStartedRef.current = true;
+      handleStart();
+    }
+  }, [autoStart, isConnected, isStarting, callEnded, handleStart]);
 
   // Determine if we are currently in "Connecting" state:
   // User clicked start OR room is connecting OR agent is initializing/connecting
@@ -212,7 +233,13 @@ export function ViewController({ appConfig }: ViewControllerProps) {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
-                  onClick={handleStart}
+                  onClick={() => {
+                    if (onRestartSession) {
+                      onRestartSession();
+                    } else {
+                      handleStart();
+                    }
+                  }}
                   className="flex-1 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-blue-500/25 py-5"
                 >
                   Try Again
@@ -291,7 +318,13 @@ export function ViewController({ appConfig }: ViewControllerProps) {
             {/* Start Again Option Button */}
             <Button
               size="lg"
-              onClick={handleStart}
+              onClick={() => {
+                if (onRestartSession) {
+                  onRestartSession();
+                } else {
+                  handleStart();
+                }
+              }}
               id="nova-restart-button"
               className="w-72 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-8 py-6 text-base font-bold text-white shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.03] transition-all duration-300"
             >
@@ -316,6 +349,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
           <MotionSessionView
             key="session-view"
             {...VIEW_MOTION_PROPS}
+            messages={messages}
             supportsChatInput={appConfig.supportsChatInput}
             supportsVideoInput={appConfig.supportsVideoInput}
             supportsScreenShare={appConfig.supportsScreenShare}
@@ -346,6 +380,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
         {isConnected && isZenithActive && (
           <ZenithOverlay
             key="zenith-overlay"
+            messages={messages}
             supportsChatInput={appConfig.supportsChatInput}
             onDisconnect={handleEnd}
           />

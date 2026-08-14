@@ -1,7 +1,6 @@
 'use client';
-
-import { useMemo } from 'react';
-import { TokenSource } from 'livekit-client';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Room, TokenSource } from 'livekit-client';
 import { useSession } from '@livekit/components-react';
 import { WarningIcon } from '@phosphor-icons/react/dist/ssr';
 import type { AppConfig } from '@/app-config';
@@ -13,6 +12,51 @@ import { useAgentErrors } from '@/hooks/useAgentErrors';
 import { useDebugMode } from '@/hooks/useDebug';
 import { getSandboxTokenSource } from '@/lib/utils';
 
+// Defensive patch to prevent duplicate text/byte stream handler registration crashes
+if (typeof window !== 'undefined') {
+  const originalRegisterText = Room.prototype.registerTextStreamHandler;
+  if (originalRegisterText && !(originalRegisterText as unknown as { __patched?: boolean }).__patched) {
+    const patchedRegisterText = function (this: Room, topic: string, callback: any) {
+      try {
+        this.unregisterTextStreamHandler(topic);
+      } catch {
+        // ignore
+      }
+      try {
+        return originalRegisterText.call(this, topic, callback);
+      } catch (err: any) {
+        if (err?.message?.includes('already been set')) {
+          return;
+        }
+        throw err;
+      }
+    };
+    (patchedRegisterText as unknown as { __patched?: boolean }).__patched = true;
+    Room.prototype.registerTextStreamHandler = patchedRegisterText;
+  }
+
+  const originalRegisterByte = Room.prototype.registerByteStreamHandler;
+  if (originalRegisterByte && !(originalRegisterByte as unknown as { __patched?: boolean }).__patched) {
+    const patchedRegisterByte = function (this: Room, topic: string, callback: any) {
+      try {
+        this.unregisterByteStreamHandler(topic);
+      } catch {
+        // ignore
+      }
+      try {
+        return originalRegisterByte.call(this, topic, callback);
+      } catch (err: any) {
+        if (err?.message?.includes('already been set')) {
+          return;
+        }
+        throw err;
+      }
+    };
+    (patchedRegisterByte as unknown as { __patched?: boolean }).__patched = true;
+    Room.prototype.registerByteStreamHandler = patchedRegisterByte;
+  }
+}
+
 const IN_DEVELOPMENT = process.env.NODE_ENV !== 'production';
 
 function AppSetup() {
@@ -22,11 +66,13 @@ function AppSetup() {
   return null;
 }
 
-interface AppProps {
+interface SessionContainerProps {
   appConfig: AppConfig;
+  onRestart: () => void;
+  autoStart?: boolean;
 }
 
-export function App({ appConfig }: AppProps) {
+function SessionContainer({ appConfig, onRestart, autoStart = false }: SessionContainerProps) {
   const tokenSource = useMemo(() => {
     if (typeof process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT === 'string') {
       return getSandboxTokenSource(appConfig);
@@ -68,7 +114,11 @@ export function App({ appConfig }: AppProps) {
     <AgentSessionProvider session={session}>
       <AppSetup />
       <main className="grid h-svh grid-cols-1 place-content-center">
-        <ViewController appConfig={appConfig} />
+        <ViewController
+          appConfig={appConfig}
+          onRestartSession={onRestart}
+          autoStart={autoStart}
+        />
       </main>
       <StartAudioButton label="Start Audio" />
       <Toaster
@@ -86,5 +136,28 @@ export function App({ appConfig }: AppProps) {
         }
       />
     </AgentSessionProvider>
+  );
+}
+
+interface AppProps {
+  appConfig: AppConfig;
+}
+
+export function App({ appConfig }: AppProps) {
+  const [currentKey, setCurrentKey] = useState(0);
+  const [autoStartNext, setAutoStartNext] = useState(false);
+
+  const handleRestart = useCallback(() => {
+    setAutoStartNext(true);
+    setCurrentKey((prev) => prev + 1);
+  }, []);
+
+  return (
+    <SessionContainer
+      key={currentKey}
+      appConfig={appConfig}
+      onRestart={handleRestart}
+      autoStart={autoStartNext}
+    />
   );
 }
