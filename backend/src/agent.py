@@ -378,7 +378,7 @@ class Assistant(Agent):
         BEFORE calling this tool.
 
         Args:
-            user_request: A brief summary of what the user wants to practice in maths.
+            user_request: The EXACT math problem or calculation asked by the user (e.g., 'What is 22 times 96?', '125 plus 340'). You MUST include the exact numbers and operations. Do NOT summarize as 'math question' or 'math practice'!
         """
         logger.info(
             f"Handing off to MathSpecialist (Zenith). user_request={user_request!r}, "
@@ -389,6 +389,29 @@ class Assistant(Agent):
             user_request=user_request,
         )
         return specialist
+
+
+import re
+
+def try_calculate_math_answer(text: str) -> Optional[str]:
+    """Helper to parse and evaluate basic arithmetic expressions from spoken text."""
+    if not text:
+        return None
+    t = text.lower()
+    t = re.sub(r'\btimes\b|\bmultiplied by\b|\bx\b', '*', t)
+    t = re.sub(r'\bplus\b|\badded to\b', '+', t)
+    t = re.sub(r'\bminus\b|\bsubtracted by\b|\btake away\b', '-', t)
+    t = re.sub(r'\bdivided by\b|\bover\b', '/', t)
+    match = re.search(r'(\d+(?:\.\d+)?\s*[\+\-\*/]\s*\d+(?:\.\d+)?)', t)
+    if match:
+        try:
+            res = eval(match.group(1))
+            if isinstance(res, float) and res.is_integer():
+                res = int(res)
+            return str(res)
+        except Exception:
+            pass
+    return None
 
 
 class MathSpecialist(Agent):
@@ -403,34 +426,52 @@ class MathSpecialist(Agent):
         self.current_caller_id = caller_id
         self.exercises_attempted = 0
         self.exercises_passed = 0
+        self.calculated_answer = try_calculate_math_answer(user_request)
+
         context_suffix = ""
         if user_request:
+            answer_info = f" The calculated numerical answer is {self.calculated_answer}." if self.calculated_answer else ""
             context_suffix = (
                 f"\n\nUSER CONTEXT (from Nova handoff):\n"
-                f"The user asked: '{user_request}'.\n"
-                f"You MUST solve and explain this specific question step by step and give the final numerical answer clearly. "
+                f"The user asked Nova this exact math question: '{user_request}'.{answer_info}\n"
+                f"You MUST immediately state the numerical answer clearly out loud and explain the calculation step by step. "
                 f"Do NOT ask the user any quiz or practice questions afterwards."
             )
         super().__init__(instructions=MATH_SPECIALIST_PROMPT + context_suffix)
 
     async def on_enter(self) -> None:
         """Automatically called when Zenith takes over after handoff."""
-        logger.info(f"[Zenith] Entered session after handoff. user_request={self.user_request!r}")
+        logger.info(
+            f"[Zenith] Entered session after handoff. user_request={self.user_request!r}, "
+            f"calculated_answer={self.calculated_answer!r}"
+        )
         try:
-            await self.session.room.local_participant.set_attributes({
-                "active_agent": "Zenith",
-                "agent_name": "Zenith",
-            })
+            if hasattr(self.session, "room_io") and self.session.room_io:
+                await self.session.room_io.room.local_participant.set_attributes({
+                    "active_agent": "Zenith",
+                    "agent_name": "Zenith",
+                })
         except Exception as e:
             logger.warning(f"[Zenith] Could not set attributes: {e}")
 
-        # Trigger Zenith's immediate greeting and solution to the handoff question
-        intro_prompt = (
-            f"Introduce yourself warmly as Zenith, the Maths Specialist, and clearly solve and explain the answer to the user's question: '{self.user_request}'. Provide the clear final answer and do not ask any quiz questions afterwards."
-            if self.user_request
-            else "Introduce yourself as Zenith, the Maths Specialist, and ask what maths question you can solve for them today."
-        )
-        self.session.generate_reply(user_input=intro_prompt)
+        # Trigger Zenith's immediate greeting and explicit answer to the handoff question
+        if self.user_request:
+            if self.calculated_answer:
+                intro_prompt = (
+                    f"Say out loud: 'Hi! I'm Zenith, your Maths Specialist! {self.user_request} equals {self.calculated_answer}.' "
+                    f"Then explain how to solve it in one simple sentence. Do not ask any quiz questions afterwards."
+                )
+            else:
+                intro_prompt = (
+                    f"Introduce yourself warmly as Zenith, the Maths Specialist, and immediately solve, calculate, and state the step-by-step explanation and exact final answer for: '{self.user_request}'."
+                )
+        else:
+            intro_prompt = "Introduce yourself as Zenith, the Maths Specialist, and ask what maths question you can solve for them today."
+
+        try:
+            self.session.generate_reply(user_input=intro_prompt)
+        except Exception as e:
+            logger.error(f"[Zenith] Could not generate reply on enter: {e}")
 
     @function_tool
     async def fetch_next_exercise(
