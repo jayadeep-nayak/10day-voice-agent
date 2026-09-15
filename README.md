@@ -133,7 +133,7 @@ flowchart TD
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/murf-ai/murf-livekit-starter.git
+git clone https://github.com/jayadeep-nayak/10day-voice-agent.git
 cd murf-livekit-starter
 ```
 
